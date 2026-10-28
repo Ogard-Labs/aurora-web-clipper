@@ -33,7 +33,7 @@ test('preserves bold links inside selected paragraphs', () => {
     element('p', [
       text('Read '),
       element('strong', [
-        element('a', [text('AuroraDocs')], { href: 'https://auroradocs.eu' }),
+        element('a', [text('Aurora')], { href: 'https://aurora.ink' }),
       ]),
     ]),
   ])
@@ -45,10 +45,10 @@ test('preserves bold links inside selected paragraphs', () => {
         { type: 'text', text: 'Read ' },
         {
           type: 'text',
-          text: 'AuroraDocs',
+          text: 'Aurora',
           marks: [
             { type: 'bold' },
-            { type: 'link', attrs: { href: 'https://auroradocs.eu', target: '_blank' } },
+            { type: 'link', attrs: { href: 'https://aurora.ink', target: '_blank' } },
           ],
         },
       ],
@@ -61,7 +61,7 @@ test('resolves relative selected links against the clipped page URL', () => {
     element('p', [
       element('a', [text('Docs')], { href: '/docs' }),
     ]),
-  ], { baseUrl: 'https://auroradocs.eu/product/overview' })
+  ], { baseUrl: 'https://aurora.ink/product/overview' })
 
   assert.deepEqual(blocks, [
     {
@@ -70,7 +70,7 @@ test('resolves relative selected links against the clipped page URL', () => {
         {
           type: 'text',
           text: 'Docs',
-          marks: [{ type: 'link', attrs: { href: 'https://auroradocs.eu/docs', target: '_blank' } }],
+          marks: [{ type: 'link', attrs: { href: 'https://aurora.ink/docs', target: '_blank' } }],
         },
       ],
     },
