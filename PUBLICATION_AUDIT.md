@@ -4,8 +4,9 @@ Date: 2026-07-13
 
 ## Decision
 
-This repository uses a clean snapshot exported from the private AuroraDocs
-monorepo on 2026-07-13. Earlier development occurred in that private monorepo.
+This repository uses a clean snapshot exported from the private Aurora monorepo
+(formerly named AuroraDocs) on 2026-07-13. Earlier development occurred in that
+private monorepo.
 
 The full-history candidate was rejected because its author metadata included a
 non-public address without explicit publication approval. That history was not
