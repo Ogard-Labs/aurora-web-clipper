@@ -70,6 +70,16 @@ export async function exchangeOAuthCode({ apiUrl, provider, state, code, extensi
   }
 }
 
+export async function requestOAuthLinkEmail({ apiUrl, linkToken, fetchImpl = fetch }) {
+  await requestJson({
+    apiUrl,
+    path: '/auth/oauth/link/email',
+    method: 'POST',
+    body: { linkToken },
+    fetchImpl,
+  })
+}
+
 export async function fetchOAuthProviders({ apiUrl, extensionId, fetchImpl = fetch }) {
   const payload = await requestJson({
     apiUrl,

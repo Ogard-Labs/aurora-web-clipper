@@ -7,6 +7,7 @@ import {
   hashVerifier,
   listOAuthProviders,
   readRelayResult,
+  requestOAuthLinkEmail,
   runOAuthSignIn,
 } from './oauth.js'
 
@@ -131,4 +132,59 @@ test('the provider list keeps only providers this extension may use', async () =
   const providers = await listOAuthProviders({ apiUrl: 'https://api.aurora.ink/', extensionId: EXTENSION_ID, fetchImpl })
   assert.equal(requested, `https://api.aurora.ink/auth/oauth/providers?extensionId=${EXTENSION_ID}`)
   assert.deepEqual(providers, [{ id: 'google', name: 'Google' }])
+})
+
+async function signInWithExchangeAnswer(status, payload) {
+  const fetchImpl = async (url) => url.includes('/start?')
+    ? jsonResponse(200, { authUrl: 'https://login.microsoftonline.com/', state: 's' })
+    : jsonResponse(status, payload)
+  return runOAuthSignIn({
+    apiUrl: 'https://api.aurora.ink',
+    provider: 'microsoft',
+    identity: fakeIdentity(`https://${EXTENSION_ID}.chromiumapp.org/auth/oauth/microsoft/callback#state=s&code=c`),
+    fetchImpl,
+  })
+}
+
+test('no Aurora account for the provider email is handed to Aurora', async () => {
+  const result = await signInWithExchangeAnswer(400, { error: 'No Aurora account exists for this verified OAuth email yet.' })
+  assert.deepEqual(result, { status: 'handoff', kind: 'no_account', provider: 'microsoft' })
+})
+
+test('an unlinked provider account comes back with the link token to email a link', async () => {
+  const result = await signInWithExchangeAnswer(409, {
+    error: 'Confirm this sign-in method.',
+    code: 'oauth_link_confirmation_required',
+    email: 'ada@example.com',
+    provider: 'microsoft',
+    linkToken: 'link-token-1',
+  })
+  assert.deepEqual(result, { status: 'handoff', kind: 'link', provider: 'microsoft', email: 'ada@example.com', linkToken: 'link-token-1' })
+})
+
+test('an unverified Aurora email is handed to Aurora with the address', async () => {
+  const result = await signInWithExchangeAnswer(403, { error: 'Verify your email.', code: 'email_verification_required', email: 'ada@example.com' })
+  assert.deepEqual(result, { status: 'handoff', kind: 'verify_email', provider: 'microsoft', email: 'ada@example.com' })
+})
+
+test('other refusals keep the server message', async () => {
+  await assert.rejects(() => signInWithExchangeAnswer(403, { error: 'This account has been disabled.' }), /disabled/)
+})
+
+test('the provider list keeps the API order for all four providers', async () => {
+  const fetchImpl = async () => jsonResponse(200, {
+    items: ['apple', 'github', 'google', 'microsoft'].map((id) => ({ id, name: id.toUpperCase(), configured: true, extensionConfigured: true })),
+  })
+  const providers = await listOAuthProviders({ apiUrl: 'https://api.aurora.ink', extensionId: EXTENSION_ID, fetchImpl })
+  assert.deepEqual(providers.map((provider) => provider.id), ['apple', 'github', 'google', 'microsoft'])
+})
+
+test('the link email is requested with the link token', async () => {
+  let call = null
+  const fetchImpl = async (url, init) => {
+    call = { url, body: JSON.parse(init.body), method: init.method }
+    return { ok: true, status: 204, json: async () => { throw new SyntaxError('no body') } }
+  }
+  await requestOAuthLinkEmail({ apiUrl: 'https://api.aurora.ink', linkToken: 'link-token-1', fetchImpl })
+  assert.deepEqual(call, { url: 'https://api.aurora.ink/auth/oauth/link/email', body: { linkToken: 'link-token-1' }, method: 'POST' })
 })

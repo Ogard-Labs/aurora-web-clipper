@@ -1,4 +1,6 @@
-import { exchangeOAuthCode, fetchOAuthProviders, startOAuthSignIn } from './auth.js'
+import { AuroraClipperApiError, exchangeOAuthCode, fetchOAuthProviders, startOAuthSignIn } from './auth.js'
+
+export { requestOAuthLinkEmail } from './auth.js'
 
 const PROVIDERS = new Set(['apple', 'github', 'google', 'microsoft'])
 
@@ -59,7 +61,31 @@ export async function runOAuthSignIn({ apiUrl, provider, identity, fetchImpl = f
   }
   if (!responseUrl) throw new OAuthCancelledError()
   const { code } = readRelayResult(responseUrl, state)
-  return exchangeOAuthCode({ apiUrl, provider, state, code, extensionVerifier: verifier, fetchImpl })
+  try {
+    return await exchangeOAuthCode({ apiUrl, provider, state, code, extensionVerifier: verifier, fetchImpl })
+  } catch (error) {
+    const handoff = handoffFor(error, provider)
+    if (handoff) return handoff
+    throw error
+  }
+}
+
+// Answers the clipper cannot finish itself. The popup turns each into one
+// sentence and, where it helps, one action.
+function handoffFor(error, provider) {
+  if (!(error instanceof AuroraClipperApiError)) return null
+  const payload = error.payload ?? {}
+  if (error.status === 409 && payload.code === 'oauth_link_confirmation_required' && payload.linkToken) {
+    return { status: 'handoff', kind: 'link', provider, email: payload.email ?? '', linkToken: payload.linkToken }
+  }
+  if (error.status === 403 && payload.code === 'email_verification_required') {
+    return { status: 'handoff', kind: 'verify_email', provider, email: payload.email ?? '' }
+  }
+  // The API has no code for this one; its message is the stable signal.
+  if (error.status === 400 && /no aurora account exists/i.test(payload.error ?? '')) {
+    return { status: 'handoff', kind: 'no_account', provider }
+  }
+  return null
 }
 
 export async function listOAuthProviders({ apiUrl, extensionId, fetchImpl = fetch }) {
