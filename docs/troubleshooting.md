@@ -18,6 +18,14 @@
   code and check the account's inbox.
 - For a self-hosted service, confirm the service is reachable from the browser
   and permits the extension's requests.
+- No **Continue with …** buttons: the server does not allow provider sign-in
+  for this extension. Its administrator adds
+  `aknfkfnafcppbgknjbibgpcgfhlpgcme` to `AURORA_AUTH_CLIPPER_EXTENSION_IDS`.
+  Email and password sign-in still works.
+- The provider window closed and nothing happened: the sign-in was cancelled.
+  Select the button again.
+- "Not linked to your Aurora account yet": select **Email me a link**, open the
+  link from the email, then sign in with the provider again.
 
 ## Pairing or encrypted capture fails
 

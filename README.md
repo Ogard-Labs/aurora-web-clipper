@@ -44,9 +44,14 @@ for the protected workflow and required deployment setup.
 3. In Aurora, open **Settings → Workspace**, copy **Workspace ID**, and
    enter it in the popup. For a self-hosted workspace, ask its administrator
    for both the API URL and Workspace ID.
-4. Enter your Aurora email and password, then select **Sign in securely**.
+4. Enter your Aurora email and password, then select **Sign in securely**. Or
+   select **Continue with Google**, **GitHub**, **Apple** or **Microsoft** if
+   you sign in to Aurora that way. The provider opens in its own window and
+   returns to AuroraCloud, which hands a one-time code back to this extension.
+   The buttons appear only when the server allows this extension (see
+   [Self-hosted servers](#self-hosted-servers)).
 5. If prompted for MFA, use your authenticator code or request and enter an
-   email code.
+   email code. Apple, and Microsoft when it reports MFA, may skip this step.
 6. Select **Enable encrypted capture**, open Aurora in a trusted tab, and
    approve the one-time pairing code for the unlocked workspace.
 
@@ -58,8 +63,20 @@ credentials and the selected workspace key metadata stay in
 `chrome.storage.local`.
 MCP tokens are not used by the Web Clipper and should not be pasted into it.
 
+If a provider sign-in cannot finish in the extension, the popup says why: no
+Aurora account exists for that email yet, the provider is not linked to the
+Aurora account (choose **Email me a link**), or the email address is not
+confirmed yet.
+
 See [Privacy and permissions](docs/privacy-and-permissions.md) for the complete
 storage, page-access, and deletion behavior.
+
+### Self-hosted servers
+
+Provider sign-in needs the server to allow this extension's fixed ID,
+`aknfkfnafcppbgknjbibgpcgfhlpgcme`, in `AURORA_AUTH_CLIPPER_EXTENSION_IDS`. The
+providers need no extra redirect URI. Without it, email and password sign-in
+still works.
 
 ## Capture content
 
@@ -91,6 +108,12 @@ pages, and protected store pages cannot be captured.
    new folder. Removal deletes the local session, so sign in again and complete
    MFA again if prompted.
 5. Open the popup and confirm the API URL, Workspace ID, and sign-in state.
+
+**Updating from 0.2.x:** the first release with provider sign-in adds a
+manifest `key`, which gives the extension a fixed ID. The browser treats it as
+a new extension once, so sign in and pair again. The old entry under
+**Authorized clippers** in Aurora is no longer used and can be revoked. Later
+updates keep the session as before.
 
 ## Sign out or uninstall
 
