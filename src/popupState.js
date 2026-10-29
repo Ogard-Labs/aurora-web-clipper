@@ -14,3 +14,8 @@ export function shouldStopPairingPoll(error, expiresAt, now = Date.now()) {
   if (Date.parse(expiresAt) <= now) return true
   return error?.status === 400 || error?.status === 403
 }
+
+export function chooseWorkspaceId(workspaces, savedId) {
+  if (workspaces.some((workspace) => workspace.id === savedId)) return savedId
+  return workspaces[0]?.id ?? savedId
+}
