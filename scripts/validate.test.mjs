@@ -3,10 +3,10 @@ import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { CLIPPER_EXTENSION_ID, extensionIdFromKey, validateManifest } from '../scripts/validate.mjs'
 
-test('package and manifest versions are both the standalone 0.3.0 release', async () => {
+test('package and manifest versions are both the standalone 0.3.1 release', async () => {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'))
-  assert.equal(pkg.version, '0.3.0')
+  assert.equal(pkg.version, '0.3.1')
   assert.equal(manifest.version, pkg.version)
 })
 
@@ -71,7 +71,7 @@ test('public release surfaces derive the archive name from the package version',
 
 const validManifest = {
   manifest_version: 3,
-  version: '0.3.0',
+  version: '0.3.1',
   icons: { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png', 48: 'icons/icon-48.png', 128: 'icons/icon-128.png' },
   action: {
     default_popup: 'src/popup.html',
@@ -85,34 +85,34 @@ const validManifest = {
 }
 
 test('validateManifest accepts the expected standalone release manifest', async () => {
-  await validateManifest({ manifest: validManifest, packageVersion: '0.3.0' })
+  await validateManifest({ manifest: validManifest, packageVersion: '0.3.1' })
 })
 
 test('validateManifest requires the identity permission for provider sign-in', async () => {
   const manifest = { ...validManifest, permissions: ['activeTab', 'scripting', 'storage'] }
-  await assert.rejects(() => validateManifest({ manifest, packageVersion: '0.3.0' }), /identity/)
+  await assert.rejects(() => validateManifest({ manifest, packageVersion: '0.3.1' }), /identity/)
 })
 
 test('validateManifest requires the Aurora icons for the toolbar and the extensions page', async () => {
   const { icons: _icons, ...withoutIcons } = validManifest
-  await assert.rejects(() => validateManifest({ manifest: withoutIcons, packageVersion: '0.3.0' }), /icon/)
+  await assert.rejects(() => validateManifest({ manifest: withoutIcons, packageVersion: '0.3.1' }), /icon/)
   const withoutToolbarIcon = { ...validManifest, action: { default_popup: 'src/popup.html' } }
-  await assert.rejects(() => validateManifest({ manifest: withoutToolbarIcon, packageVersion: '0.3.0' }), /icon/)
+  await assert.rejects(() => validateManifest({ manifest: withoutToolbarIcon, packageVersion: '0.3.1' }), /icon/)
 })
 
 test('the manifest key pins the extension ID AuroraCloud allowlists', async () => {
   assert.equal(extensionIdFromKey(validManifest.key), CLIPPER_EXTENSION_ID)
   assert.equal(CLIPPER_EXTENSION_ID, 'aknfkfnafcppbgknjbibgpcgfhlpgcme')
   const { key: _key, ...withoutKey } = validManifest
-  await assert.rejects(() => validateManifest({ manifest: withoutKey, packageVersion: '0.3.0' }), /key/)
+  await assert.rejects(() => validateManifest({ manifest: withoutKey, packageVersion: '0.3.1' }), /key/)
   const otherKey = Buffer.from('not the clipper key').toString('base64')
-  await assert.rejects(() => validateManifest({ manifest: { ...validManifest, key: otherKey }, packageVersion: '0.3.0' }), /extension ID/)
+  await assert.rejects(() => validateManifest({ manifest: { ...validManifest, key: otherKey }, packageVersion: '0.3.1' }), /extension ID/)
 })
 
 test('validateManifest rejects host_permissions containing <all_urls>', async () => {
   const manifest = { ...validManifest, host_permissions: ['<all_urls>'] }
   await assert.rejects(
-    () => validateManifest({ manifest, packageVersion: '0.3.0' }),
+    () => validateManifest({ manifest, packageVersion: '0.3.1' }),
     /must not request broad host access/,
   )
 })
@@ -120,7 +120,7 @@ test('validateManifest rejects host_permissions containing <all_urls>', async ()
 test('validateManifest rejects host_permissions containing https://*/*', async () => {
   const manifest = { ...validManifest, host_permissions: ['https://*/*'] }
   await assert.rejects(
-    () => validateManifest({ manifest, packageVersion: '0.3.0' }),
+    () => validateManifest({ manifest, packageVersion: '0.3.1' }),
     /must not request broad host access/,
   )
 })
@@ -128,7 +128,7 @@ test('validateManifest rejects host_permissions containing https://*/*', async (
 test('validateManifest rejects host_permissions containing *://*/*', async () => {
   const manifest = { ...validManifest, host_permissions: ['*://*/*'] }
   await assert.rejects(
-    () => validateManifest({ manifest, packageVersion: '0.3.0' }),
+    () => validateManifest({ manifest, packageVersion: '0.3.1' }),
     /must not request broad host access/,
   )
 })
@@ -137,7 +137,7 @@ for (const broadPattern of ['https://*/', 'http://*/', 'https://*/foo*', '*://*/
   test(`validateManifest rejects host_permissions containing ${broadPattern}`, async () => {
     const manifest = { ...validManifest, host_permissions: [broadPattern] }
     await assert.rejects(
-      () => validateManifest({ manifest, packageVersion: '0.3.0' }),
+      () => validateManifest({ manifest, packageVersion: '0.3.1' }),
       /must not request broad host access/,
     )
   })
@@ -146,7 +146,7 @@ for (const broadPattern of ['https://*/', 'http://*/', 'https://*/foo*', '*://*/
 test('validateManifest rejects missing optional_host_permissions', async () => {
   const { optional_host_permissions, ...manifest } = validManifest
   await assert.rejects(
-    () => validateManifest({ manifest, packageVersion: '0.3.0' }),
+    () => validateManifest({ manifest, packageVersion: '0.3.1' }),
     /optional_host_permissions/,
   )
 })
@@ -154,7 +154,7 @@ test('validateManifest rejects missing optional_host_permissions', async () => {
 test('validateManifest rejects optional_host_permissions without https wildcard', async () => {
   const manifest = { ...validManifest, optional_host_permissions: ['https://api.example.com/*'] }
   await assert.rejects(
-    () => validateManifest({ manifest, packageVersion: '0.3.0' }),
+    () => validateManifest({ manifest, packageVersion: '0.3.1' }),
     /optional_host_permissions/,
   )
 })
