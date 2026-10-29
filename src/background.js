@@ -64,8 +64,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   oauthSignInRunning = true
   runOAuthSignIn({ apiUrl: message.apiUrl, provider: message.provider, identity: chrome.identity })
     .then(async (result) => {
-      if (result.status !== 'signed_in') {
-        sendResponse({ ok: false, error: 'This account needs a sign-in code. Use email and password for now.' })
+      if (result.status === 'mfa_required') {
+        // Session storage is memory-only and cleared when the browser closes.
+        await chrome.storage.session.set({ pendingMfa: result.challenge })
+        sendResponse({ ok: false, mfa: true })
+        return
+      }
+      if (result.status === 'handoff') {
+        sendResponse({ ok: false, handoff: result })
         return
       }
       await chrome.storage.local.set({ session: result.session })
