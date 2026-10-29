@@ -20,7 +20,7 @@ the extension must send clips to an AuroraCloud-compatible API.
 
 1. Download the latest published Aurora Web Clipper ZIP from the
    [Aurora download page](https://aurora.ink/download.html) or the
-   [public releases page](https://github.com/henrikogaard/auroradocs-web-clipper/releases),
+   [public releases page](https://github.com/Ogard-Labs/aurora-web-clipper/releases),
    then extract it to a folder you will keep on your computer.
 2. Open `chrome://extensions`.
 3. Enable **Developer mode**.
