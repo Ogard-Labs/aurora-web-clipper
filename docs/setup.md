@@ -36,7 +36,9 @@ Do not delete or move the extracted folder while the extension is installed.
 3. In Aurora, open **Settings → Workspace** and copy the value from
    **Workspace ID**, then enter it in the popup. For a self-hosted workspace,
    ask its administrator for both the API URL and Workspace ID.
-4. Enter your Aurora email and password, then select **Sign in**.
+4. Enter your Aurora email and password, then select **Sign in securely**. Or
+   select **Continue with Google**, **GitHub**, **Apple** or **Microsoft** if
+   you sign in to Aurora that way, and finish in the window that opens.
 5. If MFA is required, enter an authenticator code or request an email code.
 
 The extension stores its refreshable session in `chrome.storage.local`; the API
@@ -65,6 +67,12 @@ captured.
    and complete MFA again if prompted.
 5. Verify the API URL, Workspace ID, and sign-in state.
 6. Repeat one **Clip page** verification.
+
+**Updating from 0.2.x:** the first release with provider sign-in adds a
+manifest `key`, which gives the extension a fixed ID. The browser treats it as
+a new extension once, so sign in and pair again. The old entry under
+**Authorized clippers** in Aurora is no longer used and can be revoked. Later
+updates keep the session as before.
 
 ## Sign out or Uninstall
 

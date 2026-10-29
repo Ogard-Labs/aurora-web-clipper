@@ -35,6 +35,61 @@ export async function signIn({ apiUrl, email, password, fetchImpl = fetch }) {
   }
 }
 
+export async function startOAuthSignIn({ apiUrl, provider, extensionRedirectUri, extensionVerifierHash, fetchImpl = fetch }) {
+  const query = new URLSearchParams({ intent: 'login', extensionRedirectUri, extensionVerifierHash })
+  const payload = await requestJson({
+    apiUrl,
+    path: `/auth/oauth/${encodeURIComponent(provider)}/start?${query}`,
+    method: 'GET',
+    fetchImpl,
+  })
+  if (typeof payload.authUrl !== 'string' || typeof payload.state !== 'string') {
+    throw new AuroraClipperApiError('AuroraCloud did not return a sign-in address.', 500, payload)
+  }
+  return { authUrl: payload.authUrl, state: payload.state }
+}
+
+export async function exchangeOAuthCode({ apiUrl, provider, state, code, extensionVerifier, fetchImpl = fetch }) {
+  try {
+    const payload = await requestJson({
+      apiUrl,
+      path: `/auth/oauth/${encodeURIComponent(provider)}/exchange`,
+      method: 'POST',
+      body: { state, code, extensionVerifier },
+      fetchImpl,
+    })
+    return { status: 'signed_in', session: normalizeSession(payload) }
+  } catch (error) {
+    if (error instanceof AuroraClipperApiError && error.status === 401 && error.payload?.mfaId) {
+      return {
+        status: 'mfa_required',
+        challenge: normalizeMfaChallenge(error.payload, error.payload.email),
+      }
+    }
+    throw error
+  }
+}
+
+export async function requestOAuthLinkEmail({ apiUrl, linkToken, fetchImpl = fetch }) {
+  await requestJson({
+    apiUrl,
+    path: '/auth/oauth/link/email',
+    method: 'POST',
+    body: { linkToken },
+    fetchImpl,
+  })
+}
+
+export async function fetchOAuthProviders({ apiUrl, extensionId, fetchImpl = fetch }) {
+  const payload = await requestJson({
+    apiUrl,
+    path: `/auth/oauth/providers?${new URLSearchParams({ extensionId })}`,
+    method: 'GET',
+    fetchImpl,
+  })
+  return Array.isArray(payload.items) ? payload.items : []
+}
+
 export async function requestEmailCode({ apiUrl, email, mfaId, fetchImpl = fetch }) {
   const payload = await requestJson({
     apiUrl,

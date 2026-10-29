@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { validateManifest } from '../scripts/validate.mjs'
+import { CLIPPER_EXTENSION_ID, extensionIdFromKey, validateManifest } from '../scripts/validate.mjs'
 
 test('package and manifest versions are both the standalone 0.2.1 release', async () => {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
@@ -74,13 +74,28 @@ const validManifest = {
   version: '0.2.1',
   action: { default_popup: 'src/popup.html' },
   background: { service_worker: 'src/background.js' },
-  permissions: ['activeTab', 'scripting', 'storage'],
+  permissions: ['activeTab', 'identity', 'scripting', 'storage'],
+  key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmPkX8rpIlTKA6Xep6OKALQWl4yss2FPs8jDsCsBQEP552SD2grB7RF0oNlGCiBhJV2w2leJdbosDUV2nrTRuximrJf16fGFgwC31Q8WV/Fl9ZWVr/F0ZVFoI25Tg7UXczguN38pdu3tO2Va1hsWiv3x+Dr1JObMfoOUeHgIiF2qDvnhDFWcrJspR3mpX+ccgIdNRIeNyC+aqmO1Bnau/wXOo3t6bvOC21/Lv5VzKflHCZESBnFyHMH4EA1ixdAU+iJ3faD/qhJIn8uc2XURb6JmVL8cLoBiwiCf1Pjpn/2mmFoc6zwK4BPkCes0+V0gMA5JVi62fw0r3Z9x+GartOQIDAQAB',
   host_permissions: ['https://api.aurora.ink/*', 'https://api.auroradocs.eu/*', 'http://localhost/*', 'http://127.0.0.1/*'],
   optional_host_permissions: ['https://*/*'],
 }
 
 test('validateManifest accepts the expected standalone release manifest', async () => {
   await validateManifest({ manifest: validManifest, packageVersion: '0.2.1' })
+})
+
+test('validateManifest requires the identity permission for provider sign-in', async () => {
+  const manifest = { ...validManifest, permissions: ['activeTab', 'scripting', 'storage'] }
+  await assert.rejects(() => validateManifest({ manifest, packageVersion: '0.2.1' }), /identity/)
+})
+
+test('the manifest key pins the extension ID AuroraCloud allowlists', async () => {
+  assert.equal(extensionIdFromKey(validManifest.key), CLIPPER_EXTENSION_ID)
+  assert.equal(CLIPPER_EXTENSION_ID, 'aknfkfnafcppbgknjbibgpcgfhlpgcme')
+  const { key: _key, ...withoutKey } = validManifest
+  await assert.rejects(() => validateManifest({ manifest: withoutKey, packageVersion: '0.2.1' }), /key/)
+  const otherKey = Buffer.from('not the clipper key').toString('base64')
+  await assert.rejects(() => validateManifest({ manifest: { ...validManifest, key: otherKey }, packageVersion: '0.2.1' }), /extension ID/)
 })
 
 test('validateManifest rejects host_permissions containing <all_urls>', async () => {

@@ -14,6 +14,7 @@ const packageFiles = [
   'src/captureEnvelope.js',
   'src/clipperApi.js',
   'src/clipperState.js',
+  'src/oauth.js',
   'src/permissions.js',
   'src/popup.html',
   'src/popup.js',

@@ -1,7 +1,20 @@
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 
-const requiredPermissions = new Set(['activeTab', 'scripting', 'storage'])
+const requiredPermissions = new Set(['activeTab', 'identity', 'scripting', 'storage'])
+
+// AuroraCloud relays provider sign-ins only to this extension ID
+// (AURORA_AUTH_CLIPPER_EXTENSION_IDS). The manifest key fixes it; a different
+// key would give every install a new ID that the server refuses.
+export const CLIPPER_EXTENSION_ID = 'aknfkfnafcppbgknjbibgpcgfhlpgcme'
+
+// Chrome's rule: the first 32 hex digits of SHA-256 over the public key,
+// with 0–f mapped to a–p.
+export function extensionIdFromKey(key) {
+  const hex = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32)
+  return [...hex].map((digit) => String.fromCharCode(97 + parseInt(digit, 16))).join('')
+}
 
 const broadHostPatterns = new Set(['<all_urls>'])
 const broadWildcardHostPattern = /^(?:https?|\*):\/\/\*\//
@@ -23,6 +36,14 @@ export async function validateManifest({ manifest, packageVersion }) {
 
   if (manifest.version !== packageVersion) {
     throw new Error(`manifest.json version ${manifest.version} does not match package.json version ${packageVersion}`)
+  }
+
+  if (typeof manifest.key !== 'string' || !manifest.key) {
+    throw new Error('manifest.json must define the key that fixes the extension ID')
+  }
+
+  if (extensionIdFromKey(manifest.key) !== CLIPPER_EXTENSION_ID) {
+    throw new Error(`manifest.json key gives extension ID ${extensionIdFromKey(manifest.key)}, expected ${CLIPPER_EXTENSION_ID}`)
   }
 
   if (!manifest.action?.default_popup) {
