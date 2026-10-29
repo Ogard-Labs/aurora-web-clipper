@@ -50,6 +50,13 @@ export async function validateManifest({ manifest, packageVersion }) {
     throw new Error('manifest.json must define action.default_popup')
   }
 
+  for (const size of [16, 32, 48, 128]) {
+    const icon = `icons/icon-${size}.png`
+    if (manifest.icons?.[size] !== icon || manifest.action.default_icon?.[size] !== icon) {
+      throw new Error(`manifest.json must use ${icon} as the ${size}px icon and toolbar icon`)
+    }
+  }
+
   if (!manifest.background?.service_worker) {
     throw new Error('manifest.json must define background.service_worker')
   }
@@ -66,6 +73,9 @@ export async function validateManifest({ manifest, packageVersion }) {
 
   await readFile(new URL(`../${manifest.action.default_popup}`, import.meta.url), 'utf8')
   await readFile(new URL(`../${manifest.background.service_worker}`, import.meta.url), 'utf8')
+  for (const size of [16, 32, 48, 128]) {
+    await readFile(new URL(`../icons/icon-${size}.png`, import.meta.url))
+  }
 }
 
 async function main() {

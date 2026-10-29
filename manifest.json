@@ -4,9 +4,11 @@
   "description": "Capture pages and selections into Aurora Inbox.",
   "version": "0.3.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmPkX8rpIlTKA6Xep6OKALQWl4yss2FPs8jDsCsBQEP552SD2grB7RF0oNlGCiBhJV2w2leJdbosDUV2nrTRuximrJf16fGFgwC31Q8WV/Fl9ZWVr/F0ZVFoI25Tg7UXczguN38pdu3tO2Va1hsWiv3x+Dr1JObMfoOUeHgIiF2qDvnhDFWcrJspR3mpX+ccgIdNRIeNyC+aqmO1Bnau/wXOo3t6bvOC21/Lv5VzKflHCZESBnFyHMH4EA1ixdAU+iJ3faD/qhJIn8uc2XURb6JmVL8cLoBiwiCf1Pjpn/2mmFoc6zwK4BPkCes0+V0gMA5JVi62fw0r3Z9x+GartOQIDAQAB",
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "action": {
     "default_title": "Clip to Aurora",
-    "default_popup": "src/popup.html"
+    "default_popup": "src/popup.html",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" }
   },
   "background": {
     "service_worker": "src/background.js",

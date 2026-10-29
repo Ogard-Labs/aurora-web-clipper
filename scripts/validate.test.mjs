@@ -72,7 +72,11 @@ test('public release surfaces derive the archive name from the package version',
 const validManifest = {
   manifest_version: 3,
   version: '0.3.0',
-  action: { default_popup: 'src/popup.html' },
+  icons: { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png', 48: 'icons/icon-48.png', 128: 'icons/icon-128.png' },
+  action: {
+    default_popup: 'src/popup.html',
+    default_icon: { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png', 48: 'icons/icon-48.png', 128: 'icons/icon-128.png' },
+  },
   background: { service_worker: 'src/background.js' },
   permissions: ['activeTab', 'identity', 'scripting', 'storage'],
   key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmPkX8rpIlTKA6Xep6OKALQWl4yss2FPs8jDsCsBQEP552SD2grB7RF0oNlGCiBhJV2w2leJdbosDUV2nrTRuximrJf16fGFgwC31Q8WV/Fl9ZWVr/F0ZVFoI25Tg7UXczguN38pdu3tO2Va1hsWiv3x+Dr1JObMfoOUeHgIiF2qDvnhDFWcrJspR3mpX+ccgIdNRIeNyC+aqmO1Bnau/wXOo3t6bvOC21/Lv5VzKflHCZESBnFyHMH4EA1ixdAU+iJ3faD/qhJIn8uc2XURb6JmVL8cLoBiwiCf1Pjpn/2mmFoc6zwK4BPkCes0+V0gMA5JVi62fw0r3Z9x+GartOQIDAQAB',
@@ -87,6 +91,13 @@ test('validateManifest accepts the expected standalone release manifest', async 
 test('validateManifest requires the identity permission for provider sign-in', async () => {
   const manifest = { ...validManifest, permissions: ['activeTab', 'scripting', 'storage'] }
   await assert.rejects(() => validateManifest({ manifest, packageVersion: '0.3.0' }), /identity/)
+})
+
+test('validateManifest requires the Aurora icons for the toolbar and the extensions page', async () => {
+  const { icons: _icons, ...withoutIcons } = validManifest
+  await assert.rejects(() => validateManifest({ manifest: withoutIcons, packageVersion: '0.3.0' }), /icon/)
+  const withoutToolbarIcon = { ...validManifest, action: { default_popup: 'src/popup.html' } }
+  await assert.rejects(() => validateManifest({ manifest: withoutToolbarIcon, packageVersion: '0.3.0' }), /icon/)
 })
 
 test('the manifest key pins the extension ID AuroraCloud allowlists', async () => {
