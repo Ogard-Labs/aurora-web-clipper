@@ -37,3 +37,31 @@ export function objectUrl(apiUrl, objectId) {
 export function workspaceOptionLabel(workspace) {
   return workspace.e2eeEnabled === true ? `${workspace.name} · encrypted` : workspace.name
 }
+
+// One workspace picker for both paths: the signed-in user's workspaces by
+// name, plus workspaces this browser is paired with for encrypted capture.
+export function workspaceChoices({ sessionWorkspaces = [], authorizations = {}, typedId = '' }) {
+  const choices = sessionWorkspaces.map((workspace) => ({ ...workspace, paired: Boolean(authorizations[workspace.id]?.captureKey) }))
+  for (const id of Object.keys(authorizations)) {
+    if (!choices.some((choice) => choice.id === id)) choices.push({ id, name: id, e2eeEnabled: true, paired: true })
+  }
+  if (typedId && !choices.some((choice) => choice.id === typedId)) choices.push({ id: typedId, name: typedId, e2eeEnabled: null, paired: false })
+  return choices
+}
+
+// Which way a clip into this workspace goes. Mirrors the worker's choice in
+// src/background.js: paired means sealed, otherwise quick only when the API
+// confirmed the workspace is unencrypted.
+export function capturePath({ choice, hasCredentials, signedIn }) {
+  if (!choice) return 'none'
+  if (choice.paired && hasCredentials) return 'encrypted'
+  if (!signedIn) return 'none'
+  return choice.e2eeEnabled === false ? 'quick' : 'blocked'
+}
+
+export function workspaceHint(path, choice) {
+  if (path === 'encrypted') return 'End-to-end encrypted · trusted browser'
+  if (path === 'blocked' && choice?.e2eeEnabled === true) return 'Encrypted workspace. Enable encrypted capture below to clip here.'
+  if (path === 'blocked') return "Aurora didn't say whether this workspace is encrypted, so quick capture is off."
+  return ''
+}

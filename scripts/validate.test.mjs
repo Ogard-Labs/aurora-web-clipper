@@ -78,7 +78,8 @@ const validManifest = {
     default_icon: { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png', 48: 'icons/icon-48.png', 128: 'icons/icon-128.png' },
   },
   background: { service_worker: 'src/background.js' },
-  permissions: ['activeTab', 'identity', 'scripting', 'storage'],
+  permissions: ['activeTab', 'contextMenus', 'identity', 'scripting', 'storage'],
+  commands: { 'clip-page': { suggested_key: { default: 'Alt+Shift+S' }, description: 'Clip this page to Aurora' } },
   key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmPkX8rpIlTKA6Xep6OKALQWl4yss2FPs8jDsCsBQEP552SD2grB7RF0oNlGCiBhJV2w2leJdbosDUV2nrTRuximrJf16fGFgwC31Q8WV/Fl9ZWVr/F0ZVFoI25Tg7UXczguN38pdu3tO2Va1hsWiv3x+Dr1JObMfoOUeHgIiF2qDvnhDFWcrJspR3mpX+ccgIdNRIeNyC+aqmO1Bnau/wXOo3t6bvOC21/Lv5VzKflHCZESBnFyHMH4EA1ixdAU+iJ3faD/qhJIn8uc2XURb6JmVL8cLoBiwiCf1Pjpn/2mmFoc6zwK4BPkCes0+V0gMA5JVi62fw0r3Z9x+GartOQIDAQAB',
   host_permissions: ['https://api.aurora.ink/*', 'https://api.auroradocs.eu/*', 'http://localhost/*', 'http://127.0.0.1/*'],
   optional_host_permissions: ['https://*/*'],
@@ -89,7 +90,7 @@ test('validateManifest accepts the expected standalone release manifest', async 
 })
 
 test('validateManifest requires the identity permission for provider sign-in', async () => {
-  const manifest = { ...validManifest, permissions: ['activeTab', 'scripting', 'storage'] }
+  const manifest = { ...validManifest, permissions: ['activeTab', 'contextMenus', 'scripting', 'storage'] }
   await assert.rejects(() => validateManifest({ manifest, packageVersion: '0.3.1' }), /identity/)
 })
 
@@ -157,4 +158,14 @@ test('validateManifest rejects optional_host_permissions without https wildcard'
     () => validateManifest({ manifest, packageVersion: '0.3.1' }),
     /optional_host_permissions/,
   )
+})
+
+test('validateManifest refuses a permission that would show an install warning', async () => {
+  const manifest = { ...validManifest, permissions: [...validManifest.permissions, 'tabs'] }
+  await assert.rejects(() => validateManifest({ manifest, packageVersion: '0.3.1' }), /tabs/)
+})
+
+test('validateManifest requires the Alt+Shift+S clip shortcut', async () => {
+  const { commands: _commands, ...manifest } = validManifest
+  await assert.rejects(() => validateManifest({ manifest, packageVersion: '0.3.1' }), /Alt\+Shift\+S/)
 })

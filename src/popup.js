@@ -3,9 +3,10 @@ import { createClipperApi } from './clipperApi.js'
 import { createClipperState } from './clipperState.js'
 import { listOAuthProviders, requestOAuthLinkEmail } from './oauth.js'
 import { ensureHostPermission } from './permissions.js'
-import { appUrl as appUrlFor, chooseWorkspaceId, derivePopupState, encryptedCaptureSuccessMessage, objectUrl, shouldStopPairingPoll, workspaceOptionLabel } from './popupState.js'
+import { freshLastCapture } from './menus.js'
+import { appUrl as appUrlFor, capturePath, chooseWorkspaceId, encryptedCaptureSuccessMessage, objectUrl, shouldStopPairingPoll, workspaceChoices, workspaceHint, workspaceOptionLabel } from './popupState.js'
 
-const form = Object.fromEntries(['apiUrl','workspaceId','workspacePicker','workspaceLabel','workspaceMeta','stateConnect','stateApprove','stateReady','directActions','pairingCode','pairingExpiry','openAurora','cancelPairing','previewTitle','previewUrl','signedOutPanel','signedInAs','sessionAvatar','pairClipper','pairingStatus','email','password','signIn','signOut','signOutReady','mfaPanel','mfaHint','mfaMethod','mfaCode','verifyMfa','requestEmailCode','cancelMfa','clipPage','clipSelection','clipPageDirect','clipSelectionDirect','status','retryCapture','oauthProviders','statusAction','directWorkspace','directWorkspaceField','intro','accountBar','pairCard'].map((id) => [id, document.querySelector(`#${id}`)]))
+const form = Object.fromEntries(['apiUrl','workspaceId','stateConnect','stateApprove','pairingCode','pairingExpiry','openAurora','cancelPairing','previewTitle','previewUrl','signedOutPanel','signedInAs','sessionAvatar','pairClipper','pairingStatus','email','password','signIn','signOut','signOutReady','mfaPanel','mfaHint','mfaMethod','mfaCode','verifyMfa','requestEmailCode','cancelMfa','status','retryCapture','oauthProviders','statusAction','intro','accountBar','pairCard','captureCard','workspaceSelect','workspaceHint','note','tags','duplicate','duplicateOpen'].map((id) => [id, document.querySelector(`#${id}`)]))
 
 let currentSession = null
 let currentCredentials = null
@@ -19,6 +20,9 @@ let busyMessage = null
 let oauthProviders = []
 let statusActionHandler = null
 let sessionWorkspaces = []
+let currentPage = null
+let duplicateId = null
+const clipButtons = [...document.querySelectorAll('[data-mode]')]
 
 function setStatus(message, kind = 'info') { busyMessage = null; form.status.replaceChildren(message); form.status.dataset.kind = kind; setStatusAction(null) }
 function setBusyStatus(message, kind = 'info') { busyMessage = message; form.status.replaceChildren(spinner(), message); form.status.dataset.kind = kind; setStatusAction(null) }
@@ -36,34 +40,37 @@ function validPairing(value) { return value && typeof value.pairingCode === 'str
 function generateId() { const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'; return Array.from(crypto.getRandomValues(new Uint8Array(15)), (byte) => alphabet[byte % alphabet.length]).join('') }
 function randomSecret() { let binary = ''; for (const byte of crypto.getRandomValues(new Uint8Array(32))) binary += String.fromCharCode(byte); return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '') }
 
+function currentChoice() { const id = form.workspaceId.value.trim(); return workspaceChoices({ sessionWorkspaces, authorizations, typedId: id }).find((choice) => choice.id === id) ?? null }
+function currentPath() { return capturePath({ choice: currentChoice(), hasCredentials: Boolean(currentCredentials), signedIn: Boolean(currentSession?.accessToken && currentSession?.refreshToken) }) }
+
 function render() {
-  const workspaceId = form.workspacePicker?.value || form.workspaceId.value.trim()
-  const state = derivePopupState({ session: currentSession, scopedCredentials: currentCredentials, pairing: pendingPairing, authorization: authorizations[workspaceId], busy })
   const signedIn = Boolean(currentSession?.accessToken && currentSession?.refreshToken)
+  const paired = Boolean(currentCredentials && Object.keys(authorizations).length)
   const mfa = Boolean(pendingMfa?.mfaId)
-  setVisible(form.stateConnect, (state.kind === 'connect' && !signedIn) || mfa)
-  setVisible(form.stateApprove, state.kind === 'approve')
-  setVisible(form.stateReady, state.kind === 'ready' && !mfa)
-  setVisible(form.directActions, signedIn && state.kind !== 'ready' && !mfa)
-  setVisible(form.signedOutPanel, !signedIn && !mfa)
-  setVisible(form.intro, !signedIn && state.kind !== 'ready')
+  const path = currentPath()
+  setVisible(form.intro, !signedIn && !paired)
   setVisible(form.accountBar, signedIn && !mfa)
-  setVisible(form.pairCard, signedIn && !mfa && state.kind === 'connect' && !currentCredentials)
+  setVisible(form.stateConnect, (!signedIn && !paired && !pendingPairing) || mfa)
+  setVisible(form.stateApprove, Boolean(pendingPairing) && !mfa)
+  setVisible(form.captureCard, (signedIn || paired) && !mfa && !pendingPairing)
+  setVisible(form.pairCard, signedIn && !mfa && !pendingPairing && !currentCredentials)
+  setVisible(form.signedOutPanel, !signedIn && !mfa)
   setVisible(form.mfaPanel, mfa)
+  setVisible(form.signOutReady, paired)
   form.signedInAs.textContent = displayUser(currentSession?.user)
   if (form.sessionAvatar) form.sessionAvatar.textContent = avatarInitials(currentSession?.user)
   if (busy && busyMessage) { form.status.replaceChildren(spinner(), busyMessage) }
-  form.clipPage.disabled = busy || state.kind !== 'ready' || mfa
-  form.clipSelection.disabled = busy || state.kind !== 'ready' || mfa
-  form.clipPageDirect.disabled = busy || !signedIn || mfa
-  form.clipSelectionDirect.disabled = busy || !signedIn || mfa
+  const canClip = !busy && !mfa && (path === 'quick' || path === 'encrypted')
+  for (const button of clipButtons) button.disabled = !canClip || (button.dataset.mode === 'screenshot' && path !== 'quick')
+  form.workspaceHint.textContent = workspaceHint(path, currentChoice()); setVisible(form.workspaceHint, Boolean(form.workspaceHint.textContent))
+  form.tags.disabled = busy || path === 'encrypted'; form.tags.placeholder = path === 'encrypted' ? "Tags aren't sealed yet" : 'Tags, comma separated'; form.note.disabled = busy
+  setVisible(form.duplicate, Boolean(duplicateId) && path === 'quick')
   form.signIn.disabled = busy; form.oauthProviders.querySelectorAll('button').forEach((button) => { button.disabled = busy }); form.statusAction.disabled = busy; form.signOut.disabled = busy; form.signOutReady.disabled = busy
   form.pairClipper.disabled = busy || !signedIn || Boolean(currentCredentials)
   form.retryCapture.classList.toggle('hidden', !pendingRetries.length || busy); form.retryCapture.disabled = busy || !currentCredentials
   form.pairingCode.textContent = pendingPairing?.pairingCode || ''
   form.pairingExpiry.textContent = pendingPairing ? `Expires ${new Date(pendingPairing.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''
   form.openAurora.disabled = busy || !pendingPairing; form.cancelPairing.disabled = busy || !pendingPairing
-  form.workspaceLabel.textContent = workspaceId || 'Choose a workspace'; form.workspaceMeta.textContent = state.kind === 'ready' ? 'End-to-end encrypted · trusted browser' : 'Not paired yet'
   renderMfa()
 }
 
@@ -82,7 +89,22 @@ async function loadSettings() {
   currentSession = validSession(local.session); currentCredentials = validCredentials(local.clipperCredentials); authorizations = validAuthorizations(local.clipperAuthorizations); pendingPairing = validPairing(local.pendingClipperPairing)
   pendingRetries = await createClipperState({ storage: chrome.storage.local }).getPreparedCaptures()
   const stored = (await chrome.storage.session.get({ pendingMfa: null })).pendingMfa; if (stored?.mfaId && !currentSession) pendingMfa = stored
-  populateWorkspacePicker(); render(); void previewPage(); void loadOAuthProviders(); void loadWorkspaces(); if (pendingPairing) void pollPairing()
+  populateWorkspacePicker(); render(); void showLastCapture(); void previewPage().then(() => findDuplicate()); void loadOAuthProviders(); void loadWorkspaces(); if (pendingPairing) void pollPairing()
+}
+
+// A clip from the menu, the shortcut or a screenshot finished while the popup was closed.
+async function showLastCapture() {
+  const { lastCapture } = await chrome.storage.session.get({ lastCapture: null }); await chrome.storage.session.remove('lastCapture')
+  try { const tab = await activeTabId(); if (tab) await chrome.action.setBadgeText({ tabId: tab, text: '' }) } catch { /* no tab */ }
+  const last = freshLastCapture(lastCapture); if (!last || busy) return
+  if (last.ok) showSaved(last.notice ? `${last.message} ${last.notice}` : last.message, last.objectId, last.apiUrl); else setStatus(last.message, 'error')
+}
+async function activeTabId() { const [tab] = await chrome.tabs.query({ active: true, currentWindow: true }); return tab?.id ?? null }
+
+async function findDuplicate() {
+  duplicateId = null; render(); if (!currentPage?.url || currentPath() !== 'quick') return
+  try { const response = await chrome.runtime.sendMessage({ type: 'AURORA_FIND_CLIP', url: currentPage.url }); duplicateId = response?.ok ? response.objectId : null } catch { duplicateId = null }
+  render()
 }
 
 // One button per provider this AuroraCloud server allows for this extension.
@@ -114,24 +136,19 @@ async function loadWorkspaces() {
     sessionWorkspaces = workspaces
     const chosen = chooseWorkspaceId(workspaces, form.workspaceId.value.trim())
     if (chosen !== form.workspaceId.value) { form.workspaceId.value = chosen; await chrome.storage.sync.set({ workspaceId: chosen }) }
-    populateDirectWorkspaces(); populateWorkspacePicker(); render()
+    populateWorkspacePicker(); render(); void findDuplicate()
   } catch { /* keep the typed Workspace ID */ }
 }
 
-function populateDirectWorkspaces() {
-  form.directWorkspace.replaceChildren(...sessionWorkspaces.map((workspace) => { const option = document.createElement('option'); option.value = workspace.id; option.textContent = workspaceOptionLabel(workspace); option.selected = workspace.id === form.workspaceId.value; return option }))
-  setVisible(form.directWorkspaceField, sessionWorkspaces.length > 1)
-}
-
 function populateWorkspacePicker() {
-  const ids = Object.keys(authorizations); const current = form.workspaceId.value.trim(); form.workspacePicker.replaceChildren()
-  if (!ids.length) { const option = document.createElement('option'); option.value = current; option.textContent = current || 'Pair a workspace first'; form.workspacePicker.append(option); form.workspacePicker.disabled = true; return }
-  ids.forEach((id) => { const option = document.createElement('option'); option.value = id; option.textContent = id; option.selected = id === current || (!current && ids.length === 1); form.workspacePicker.append(option) })
-  form.workspacePicker.disabled = false; form.workspaceId.value = form.workspacePicker.value
+  const current = form.workspaceId.value.trim(); const choices = workspaceChoices({ sessionWorkspaces, authorizations, typedId: current })
+  form.workspaceSelect.replaceChildren(...choices.map((choice) => { const option = document.createElement('option'); option.value = choice.id; option.textContent = choice.paired ? `${choice.name} · encrypted capture` : workspaceOptionLabel(choice); option.selected = choice.id === current; return option }))
+  if (!current && choices[0]) form.workspaceId.value = choices[0].id
+  form.workspaceSelect.disabled = choices.length < 2
 }
 
 async function readSettings(requireWorkspace = false) {
-  const settings = { apiUrl: normalizeApiUrl(form.apiUrl.value), workspaceId: (form.workspacePicker.value || form.workspaceId.value).trim() }
+  const settings = { apiUrl: normalizeApiUrl(form.apiUrl.value), workspaceId: form.workspaceId.value.trim() }
   form.apiUrl.value = settings.apiUrl; form.workspaceId.value = settings.workspaceId
   const permissionGranted = await ensureHostPermission(settings.apiUrl, chrome.permissions)
   if (!permissionGranted) throw new Error(`Permission denied for ${settings.apiUrl}.`)
@@ -140,10 +157,10 @@ async function readSettings(requireWorkspace = false) {
   return settings
 }
 
-async function previewPage() { try { const page = await captureActivePage(); form.previewTitle.textContent = page.title || 'Current browser tab'; form.previewUrl.textContent = page.url || 'Ready to capture' } catch { form.previewUrl.textContent = 'Open a page to preview it here' } }
+async function previewPage() { try { const page = await captureActivePage(); currentPage = page; form.previewTitle.textContent = page.title || 'Current browser tab'; form.previewUrl.textContent = page.url || 'Ready to capture' } catch { form.previewUrl.textContent = 'Open a page to preview it here' } }
 async function captureActivePage() { const response = await chrome.runtime.sendMessage({ type: 'AURORA_CAPTURE_ACTIVE_TAB' }); if (!response?.ok) throw new Error(response?.error || 'Could not inspect the current tab.'); return response.page }
 async function saveSession(session) { currentSession = session; pendingMfa = null; await chrome.storage.session.remove('pendingMfa'); await chrome.storage.local.set({ session }); render(); void loadWorkspaces() }
-async function clearSession() { currentSession = null; sessionWorkspaces = []; populateDirectWorkspaces(); pendingMfa = null; await chrome.storage.session.remove('pendingMfa'); await chrome.storage.local.remove('session'); render() }
+async function clearSession() { currentSession = null; sessionWorkspaces = []; duplicateId = null; populateWorkspacePicker(); pendingMfa = null; await chrome.storage.session.remove('pendingMfa'); await chrome.storage.local.remove('session'); render() }
 
 async function handleSignIn() {
   try { setBusy(true); setBusyStatus('Signing in...'); const settings = await readSettings(); const email = form.email.value.trim(); const password = form.password.value; if (!email || !password) throw new Error('Email and password are required.'); const result = await signIn({ apiUrl: settings.apiUrl, email, password }); form.password.value = ''; if (result.status === 'mfa_required') { pendingMfa = result.challenge; render(); form.mfaCode.focus(); return } await saveSession(result.session); setStatus('Signed in to Aurora.', 'success') } catch (error) { setStatus(error.message || String(error), 'error') } finally { setBusy(false) }
@@ -172,17 +189,26 @@ async function reloadCaptureState() {
   pendingRetries = await createClipperState({ storage: chrome.storage.local }).getPreparedCaptures(); populateWorkspacePicker()
 }
 
-function showSaved(message, objectId) { const apiUrl = form.apiUrl.value; setStatus(message, 'success'); if (objectId) setStatusAction('Open in Aurora', () => chrome.tabs.create({ url: objectUrl(apiUrl, objectId) })) }
+function showSaved(message, objectId, apiUrl = form.apiUrl.value) { setStatus(message, 'success'); if (objectId) setStatusAction('Open in Aurora', () => chrome.tabs.create({ url: objectUrl(apiUrl, objectId) })) }
 
 async function retryCapture() {
   try { setBusy(true); setBusyStatus('Retrying encrypted capture...'); const response = await chrome.runtime.sendMessage({ type: 'AURORA_RETRY_CAPTURE' }); await reloadCaptureState(); if (!response?.ok) throw new Error(response?.error || 'Retry failed.'); setStatus(encryptedCaptureSuccessMessage(), 'success') } catch (error) { setStatus(error.message || String(error), 'error') } finally { setBusy(false) }
 }
 
 async function clip(mode) {
-  try { setBusy(true); setBusyStatus('Saving to Aurora...'); await readSettings(true); if (!currentSession && !currentCredentials) throw new Error('Sign in or pair this clipper before capturing.'); const response = await chrome.runtime.sendMessage({ type: 'AURORA_CLIP', mode }); await reloadCaptureState(); if (!response?.ok) { if (response?.status === 401 && currentSession) await clearSession(); throw new Error(response?.error || 'Capture failed.') } showSaved(response.path === 'encrypted' ? encryptedCaptureSuccessMessage() : 'Saved to Aurora Inbox.', response.objectId) } catch (error) { setStatus(error.message || String(error), 'error') } finally { setBusy(false) }
+  try {
+    setBusy(true); setBusyStatus(mode === 'screenshot' ? 'Starting the screenshot...' : 'Saving to Aurora...'); await readSettings(true)
+    const response = await chrome.runtime.sendMessage({ type: 'AURORA_CLIP', mode, note: form.note.value, tags: form.tags.value })
+    if (response?.pending) { window.close(); return }
+    await chrome.storage.session.remove('lastCapture'); await reloadCaptureState()
+    if (!response?.ok) { if (response?.status === 401 && currentSession) await clearSession(); throw new Error(response?.error || 'Capture failed.') }
+    form.note.value = ''; form.tags.value = ''; if (response.path === 'quick') duplicateId = response.objectId
+    const message = response.path === 'encrypted' ? encryptedCaptureSuccessMessage() : 'Saved to Aurora Inbox.'
+    showSaved(response.notice ? `${message} ${response.notice}` : message, response.objectId)
+  } catch (error) { setStatus(error.message || String(error), 'error') } finally { setBusy(false) }
 }
 
-form.signIn.addEventListener('click', handleSignIn); form.statusAction.addEventListener('click', () => statusActionHandler?.()); form.signOut.addEventListener('click', () => clearSession()); form.pairClipper.addEventListener('click', handlePair); form.requestEmailCode.addEventListener('click', handleMfaEmail); form.verifyMfa.addEventListener('click', handleMfaVerify); form.cancelMfa.addEventListener('click', () => { pendingMfa = null; form.mfaCode.value = ''; void chrome.storage.session.remove('pendingMfa'); render() }); form.clipPage.addEventListener('click', () => clip('page')); form.clipSelection.addEventListener('click', () => clip('selection')); form.clipPageDirect.addEventListener('click', () => clip('page')); form.clipSelectionDirect.addEventListener('click', () => clip('selection')); form.retryCapture.addEventListener('click', retryCapture); form.openAurora.addEventListener('click', () => chrome.tabs.create({ url: appUrl() })); form.cancelPairing.addEventListener('click', async () => { pendingPairing = null; if (pairingTimer) clearTimeout(pairingTimer); pairingTimer = null; await chrome.storage.local.remove('pendingClipperPairing'); render() }); form.signOutReady.addEventListener('click', async () => { currentCredentials = null; authorizations = {}; await chrome.storage.local.remove(['clipperCredentials', 'clipperAuthorizations']); populateWorkspacePicker(); render() }); form.workspacePicker.addEventListener('change', () => { form.workspaceId.value = form.workspacePicker.value; render() }); form.directWorkspace.addEventListener('change', () => { form.workspaceId.value = form.directWorkspace.value; populateWorkspacePicker(); void chrome.storage.sync.set({ workspaceId: form.workspaceId.value }); render() });
+form.signIn.addEventListener('click', handleSignIn); form.statusAction.addEventListener('click', () => statusActionHandler?.()); form.signOut.addEventListener('click', () => clearSession()); form.pairClipper.addEventListener('click', handlePair); form.requestEmailCode.addEventListener('click', handleMfaEmail); form.verifyMfa.addEventListener('click', handleMfaVerify); form.cancelMfa.addEventListener('click', () => { pendingMfa = null; form.mfaCode.value = ''; void chrome.storage.session.remove('pendingMfa'); render() }); for (const button of clipButtons) button.addEventListener('click', () => clip(button.dataset.mode)); form.duplicateOpen.addEventListener('click', () => chrome.tabs.create({ url: objectUrl(form.apiUrl.value, duplicateId) })); form.retryCapture.addEventListener('click', retryCapture); form.openAurora.addEventListener('click', () => chrome.tabs.create({ url: appUrl() })); form.cancelPairing.addEventListener('click', async () => { pendingPairing = null; if (pairingTimer) clearTimeout(pairingTimer); pairingTimer = null; await chrome.storage.local.remove('pendingClipperPairing'); render() }); form.signOutReady.addEventListener('click', async () => { currentCredentials = null; authorizations = {}; await chrome.storage.local.remove(['clipperCredentials', 'clipperAuthorizations']); populateWorkspacePicker(); render() }); form.workspaceSelect.addEventListener('change', () => { form.workspaceId.value = form.workspaceSelect.value; void chrome.storage.sync.set({ workspaceId: form.workspaceId.value }); render(); void findDuplicate() });
 // A provider sign-in finishes in the background; pick up its session if the popup is still open.
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.session) { currentSession = validSession(changes.session.newValue); render() } if (area === 'session' && changes.pendingMfa) { pendingMfa = changes.pendingMfa.newValue?.mfaId ? changes.pendingMfa.newValue : null; render() } })
 loadSettings().catch((error) => setStatus(error.message || String(error), 'error'))

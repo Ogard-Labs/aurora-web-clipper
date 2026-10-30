@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 
-const requiredPermissions = new Set(['activeTab', 'identity', 'scripting', 'storage'])
+const requiredPermissions = new Set(['activeTab', 'contextMenus', 'identity', 'scripting', 'storage'])
+// None of these shows an install warning. A permission outside this list
+// could, and Chrome would disable the extension on update until the user
+// accepts it (NFR-2), so adding one must be a deliberate change here.
+const allowedPermissions = new Set([...requiredPermissions])
 
 // AuroraCloud relays provider sign-ins only to this extension ID
 // (AURORA_AUTH_CLIPPER_EXTENSION_IDS). The manifest key fixes it; a different
@@ -28,6 +32,16 @@ export async function validateManifest({ manifest, packageVersion }) {
     if (!manifest.permissions?.includes(permission)) {
       throw new Error(`manifest.json is missing permission: ${permission}`)
     }
+  }
+
+  for (const permission of manifest.permissions ?? []) {
+    if (!allowedPermissions.has(permission)) {
+      throw new Error(`manifest.json asks for ${permission}, which is not on the no-warning list`)
+    }
+  }
+
+  if (manifest.commands?.['clip-page']?.suggested_key?.default !== 'Alt+Shift+S') {
+    throw new Error('manifest.json must define the clip-page command with Alt+Shift+S')
   }
 
   if (manifest.manifest_version !== 3) {

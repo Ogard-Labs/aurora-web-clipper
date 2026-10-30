@@ -63,12 +63,15 @@ test('release package uses the exact lexical public-file allowlist', async () =>
     'src/captureEnvelope.js',
     'src/clipperApi.js',
     'src/clipperState.js',
+    'src/menus.js',
     'src/oauth.js',
     'src/permissions.js',
     'src/popup.html',
     'src/popup.js',
     'src/popupState.js',
     'src/tiptapHtml.js',
+    'src/vendor/Readability.LICENSE.md',
+    'src/vendor/Readability.js',
   ])
 })
 
@@ -81,7 +84,7 @@ test('release package bytes use fixed platform-independent stored entries', asyn
   const firstArchive = await readFile(archiveUrl)
   const entries = readCentralDirectoryEntries(firstArchive)
 
-  assert.equal(entries.length, 20)
+  assert.equal(entries.length, 23)
   for (const entry of entries) {
     assert.equal(entry.compressionMethod, 0, `${entry.name} must use ZIP STORE`)
     assert.equal(entry.dosDate, 33, `${entry.name} must use 1980-01-01`)
@@ -99,4 +102,21 @@ test('release package bytes use fixed platform-independent stored entries', asyn
   const secondHash = sha256(await readFile(archiveUrl))
 
   assert.equal(secondHash, firstHash)
+})
+
+test('the Chrome Web Store package is the release package without the manifest key', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  await execFileAsync(process.execPath, ['scripts/package.mjs'], { cwd: projectRoot })
+  await execFileAsync(process.execPath, ['scripts/package.mjs', '--store'], { cwd: projectRoot })
+
+  const release = `dist/auroradocs-web-clipper-${pkg.version}.zip`
+  const store = `dist/auroradocs-web-clipper-${pkg.version}-chrome-web-store.zip`
+  const list = async (archive) => (await execFileAsync('unzip', ['-Z1', archive], { cwd: projectRoot })).stdout
+  assert.equal(await list(store), await list(release))
+
+  const storeManifest = JSON.parse((await execFileAsync('unzip', ['-p', store, 'manifest.json'], { cwd: projectRoot })).stdout)
+  const sourceManifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'))
+  assert.equal(storeManifest.key, undefined)
+  const { key: _key, ...expected } = sourceManifest
+  assert.deepEqual(storeManifest, expected)
 })
