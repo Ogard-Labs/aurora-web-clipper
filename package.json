@@ -1,7 +1,7 @@
 {
   "name": "@aurora/clipper",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "test": "node --test src/*.test.js scripts/*.test.mjs",
