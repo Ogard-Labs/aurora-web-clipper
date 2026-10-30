@@ -85,3 +85,11 @@ test('selectionContent keeps formatting from the page node snapshot', () => {
   assert.deepEqual(paragraph.content[0], { type: 'text', text: 'Bold', marks: [{ type: 'bold' }] })
   assert.equal(paragraph.content.at(-1).marks[0].attrs.href, 'https://example.com/b')
 })
+
+test('selectionContent keeps lists from the page node snapshot', () => {
+  const el = (tagName, ...childNodes) => ({ nodeType: 1, tagName, textContent: '', attributes: {}, childNodes })
+  const text = (textContent) => ({ nodeType: 3, textContent })
+  const content = selectionContent({ ...page, selectionNodes: [el('UL', el('LI', text('a')), el('LI', text('b')))] })
+  assert.equal(content.content[1].content[0].type, 'bulletList')
+  assert.equal(content.content[1].content[0].content.length, 2)
+})

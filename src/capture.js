@@ -58,12 +58,14 @@ function hydrate(node) {
   if (node?.nodeType === 3) return { nodeType: 3, textContent: String(node.textContent ?? '') }
   if (node?.nodeType !== 1 || typeof node.tagName !== 'string') return null
   const attributes = node.attributes && typeof node.attributes === 'object' ? node.attributes : {}
+  const childNodes = (Array.isArray(node.childNodes) ? node.childNodes : []).map(hydrate).filter(Boolean)
   return {
     nodeType: 1,
     tagName: node.tagName,
     textContent: String(node.textContent ?? ''),
     getAttribute: (name) => (typeof attributes[name] === 'string' ? attributes[name] : null),
-    childNodes: (Array.isArray(node.childNodes) ? node.childNodes : []).map(hydrate).filter(Boolean),
+    childNodes,
+    children: childNodes.filter((child) => child.nodeType === 1),
   }
 }
 
