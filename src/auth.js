@@ -125,85 +125,65 @@ export async function verifyMfa({
   return normalizeSession(payload)
 }
 
-export async function refreshSession({ apiUrl, refreshToken, fetchImpl = fetch }) {
-  const payload = await requestJson({
-    apiUrl,
-    path: '/auth/refresh',
-    method: 'POST',
-    body: { refreshToken },
-    fetchImpl,
-  })
-  return normalizeSession(payload)
+// Aurora rotates the refresh token on every refresh and treats a second use
+// of the old one as theft: after a 60-second grace it signs the user out on
+// every device. So concurrent callers share one refresh, a caller still
+// holding the old token gets the session that replaced it, and the helpers
+// below hand the new session to `onSession` (which saves it) before they do
+// anything else that could fail.
+const refreshesInFlight = new Map()
+const rotatedSessions = new Map()
+const ROTATED_SESSION_MEMORY_MS = 10 * 60 * 1000
+
+export function refreshSession({ apiUrl, refreshToken, fetchImpl = fetch, now = Date.now }) {
+  const key = `${normalizeApiUrl(apiUrl)} ${refreshToken}`
+  const rotated = rotatedSessions.get(key)
+  if (rotated && now() - rotated.at < ROTATED_SESSION_MEMORY_MS) return Promise.resolve(rotated.session)
+  let pending = refreshesInFlight.get(key)
+  if (!pending) {
+    pending = requestJson({ apiUrl, path: '/auth/refresh', method: 'POST', body: { refreshToken }, fetchImpl })
+      .then((payload) => {
+        const session = normalizeSession(payload)
+        rotatedSessions.set(key, { session, at: now() })
+        return session
+      })
+      .finally(() => refreshesInFlight.delete(key))
+    refreshesInFlight.set(key, pending)
+  }
+  return pending
 }
 
-export async function createRecordWithSession({
-  apiUrl,
-  session,
-  collection,
-  body,
-  fetchImpl = fetch,
-}) {
+// Runs `send` with the session; on 401 refreshes once, saves, and retries.
+async function withSession({ apiUrl, session, onSession, fetchImpl }, send) {
   try {
-    return {
-      record: await postRecord({ apiUrl, session, collection, body, fetchImpl }),
-      session,
-    }
-  } catch (error) {
-    if (!(error instanceof AuroraClipperApiError) || error.status !== 401 || !session?.refreshToken) {
-      throw error
-    }
-  }
-
-  const refreshedSession = await refreshSession({
-    apiUrl,
-    refreshToken: session.refreshToken,
-    fetchImpl,
-  })
-  return {
-    record: await postRecord({
-      apiUrl,
-      session: refreshedSession,
-      collection,
-      body,
-      fetchImpl,
-    }),
-    session: refreshedSession,
-  }
-}
-
-// Any signed-in API call: on 401 it refreshes the session once and retries.
-export async function requestWithSession({ apiUrl, session, path, method = 'GET', body, form, fetchImpl = fetch }) {
-  const send = (current) => {
-    if (!current?.accessToken) throw new AuroraClipperApiError('Sign in to Aurora first.', 401, {})
-    return requestJson({ apiUrl, path, method, body, form, token: current.accessToken, fetchImpl })
-  }
-  try {
-    return { payload: await send(session), session }
+    return { value: await send(session), session }
   } catch (error) {
     if (!(error instanceof AuroraClipperApiError) || error.status !== 401 || !session?.refreshToken) throw error
   }
   const refreshedSession = await refreshSession({ apiUrl, refreshToken: session.refreshToken, fetchImpl })
-  return { payload: await send(refreshedSession), session: refreshedSession }
+  await onSession(refreshedSession)
+  return { value: await send(refreshedSession), session: refreshedSession }
 }
 
-export async function listWorkspacesWithSession({ apiUrl, session, fetchImpl = fetch }) {
-  try {
-    return { workspaces: await getWorkspaces({ apiUrl, session, fetchImpl }), session }
-  } catch (error) {
-    if (!(error instanceof AuroraClipperApiError) || error.status !== 401 || !session?.refreshToken) {
-      throw error
-    }
-  }
+const noSessionSink = async () => {}
 
-  const refreshedSession = await refreshSession({
-    apiUrl,
-    refreshToken: session.refreshToken,
-    fetchImpl,
+export async function createRecordWithSession({ apiUrl, session, collection, body, onSession = noSessionSink, fetchImpl = fetch }) {
+  const result = await withSession({ apiUrl, session, onSession, fetchImpl }, (current) => postRecord({ apiUrl, session: current, collection, body, fetchImpl }))
+  return { record: result.value, session: result.session }
+}
+
+// Any signed-in API call: on 401 it refreshes the session once and retries.
+export async function requestWithSession({ apiUrl, session, path, method = 'GET', body, form, onSession = noSessionSink, fetchImpl = fetch }) {
+  const result = await withSession({ apiUrl, session, onSession, fetchImpl }, (current) => {
+    if (!current?.accessToken) throw new AuroraClipperApiError('Sign in to Aurora first.', 401, {})
+    return requestJson({ apiUrl, path, method, body, form, token: current.accessToken, fetchImpl })
   })
-  return {
-    workspaces: await getWorkspaces({ apiUrl, session: refreshedSession, fetchImpl }),
-    session: refreshedSession,
-  }
+  return { payload: result.value, session: result.session }
+}
+
+export async function listWorkspacesWithSession({ apiUrl, session, onSession = noSessionSink, fetchImpl = fetch }) {
+  const result = await withSession({ apiUrl, session, onSession, fetchImpl }, (current) => getWorkspaces({ apiUrl, session: current, fetchImpl }))
+  return { workspaces: result.value, session: result.session }
 }
 
 async function getWorkspaces({ apiUrl, session, fetchImpl }) {
@@ -240,8 +220,13 @@ async function requestJson({ apiUrl, path, method, body, form, token, fetchImpl 
   const headers = form ? {} : { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
 
+  // credentials: 'omit' keeps AuroraCloud's web sign-in cookie out of the
+  // browser. Without it, a clipper sign-in or refresh handed the web app the
+  // clipper's session; the two then refreshed one token from two places and
+  // AuroraCloud signed the user out everywhere for token reuse.
   const response = await fetchImpl(`${normalizeApiUrl(apiUrl)}${path}`, {
     method,
+    credentials: 'omit',
     headers,
     body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
   })

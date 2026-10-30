@@ -1,4 +1,4 @@
-import { DEFAULT_API_URL, normalizeApiUrl } from './auth.js'
+import { DEFAULT_API_URL, listWorkspacesWithSession, normalizeApiUrl } from './auth.js'
 import { CaptureBlockedError, NO_ARTICLE_NOTICE, RASTER_TYPES, checkWorkspace, cropImage, cropOverlay, encryptedCapture, findExistingClip, imageBox, normalizeUrl, quickCapture, readArticle, readPage, retryPreparedCapture } from './capture.js'
 import { CLIP_PAGE_COMMAND, MENU_ITEMS, SUCCESS_BADGE_MS, badgeFor, requestFromMenu } from './menus.js'
 import { OAuthCancelledError, runOAuthSignIn } from './oauth.js'
@@ -178,6 +178,15 @@ async function runAndReport(request) {
   return response
 }
 
+// The popup lists workspaces through here, so only the worker ever refreshes
+// the session (see refreshSession in src/auth.js).
+async function listWorkspaces() {
+  const context = await loadContext()
+  if (!context.session) return { workspaces: [] }
+  const { workspaces } = await listWorkspacesWithSession({ apiUrl: context.apiUrl, session: context.session, onSession: saveSession })
+  return { workspaces }
+}
+
 async function findClip(url) {
   const context = await loadContext()
   if (!context.session || context.authorization || !context.workspaceId || !url) return { objectId: null }
@@ -200,6 +209,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message?.type === 'AURORA_CLIP') {
     runAndReport({ mode: message.mode, note: message.note ?? '', tags: message.tags ?? [], tabId: message.tabId }).then(sendResponse)
+    return true
+  }
+  if (message?.type === 'AURORA_LIST_WORKSPACES') {
+    listWorkspaces().then((result) => sendResponse({ ok: true, ...result }), (error) => sendResponse(errorResponse(error)))
     return true
   }
   if (message?.type === 'AURORA_FIND_CLIP') {

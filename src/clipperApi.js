@@ -32,7 +32,7 @@ export function createClipperApi({ apiUrl, credentials, fetchImpl = fetch, permi
     const headers = new Headers(init.headers)
     headers.set('Content-Type', 'application/json')
     if (token) headers.set('Authorization', `Bearer ${token}`)
-    const response = await fetchImpl(`${normalizedApiUrl}${path}`, { ...init, headers })
+    const response = await fetchImpl(`${normalizedApiUrl}${path}`, { ...init, credentials: 'omit', headers })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new ClipperApiError(String(payload.message || payload.error || `AuroraCloud returned HTTP ${response.status}.`), response.status, payload)
     return payload

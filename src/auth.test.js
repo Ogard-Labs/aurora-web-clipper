@@ -5,7 +5,9 @@ import {
   createRecordWithSession,
   listWorkspacesWithSession,
   normalizeApiUrl,
+  refreshSession,
   requestEmailCode,
+  requestWithSession,
   signIn,
   verifyMfa,
 } from './auth.js'
@@ -274,4 +276,57 @@ test('listWorkspacesWithSession refreshes an expired access token once and retur
   assert.equal(calls[2].init.headers.Authorization, 'Bearer fresh-access')
   assert.deepEqual(result.workspaces, [{ id: 'ws_1', name: 'Work', e2eeEnabled: null }])
   assert.equal(result.session.accessToken, 'fresh-access')
+})
+
+test('concurrent refreshes of one token share a single /auth/refresh call', async () => {
+  let refreshes = 0
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/auth/refresh')) {
+      refreshes += 1
+      await gate
+      return jsonResponse(200, { accessToken: 'a2', refreshToken: 'r2-shared', user: null })
+    }
+    throw new Error(`Unexpected fetch call to ${url}`)
+  }
+  const first = refreshSession({ apiUrl: 'https://api.aurora.ink', refreshToken: 'r1-shared', fetchImpl })
+  const second = refreshSession({ apiUrl: 'https://api.aurora.ink', refreshToken: 'r1-shared', fetchImpl })
+  release()
+  const [a, b] = await Promise.all([first, second])
+  assert.equal(refreshes, 1)
+  assert.equal(a.refreshToken, 'r2-shared')
+  assert.equal(b.refreshToken, 'r2-shared')
+})
+
+test('a caller still holding a rotated token gets the session that replaced it, not a second refresh', async () => {
+  let refreshes = 0
+  const fetchImpl = async () => {
+    refreshes += 1
+    return jsonResponse(200, { accessToken: 'a3', refreshToken: 'r3-later', user: null })
+  }
+  await refreshSession({ apiUrl: 'https://api.aurora.ink', refreshToken: 'r2-later', fetchImpl })
+  const stale = await refreshSession({ apiUrl: 'https://api.aurora.ink', refreshToken: 'r2-later', fetchImpl })
+  assert.equal(refreshes, 1)
+  assert.equal(stale.refreshToken, 'r3-later')
+})
+
+test('a refreshed session is saved even when the retried request then fails', async () => {
+  const saved = []
+  const { fetchImpl } = createFetchStub([
+    () => jsonResponse(401, { error: 'expired' }),
+    () => jsonResponse(200, { accessToken: 'a5', refreshToken: 'r5-saved', user: null }),
+    () => jsonResponse(404, { error: 'Not found.' }),
+  ])
+  await assert.rejects(
+    requestWithSession({ apiUrl: 'https://api.aurora.ink', session: { accessToken: 'old', refreshToken: 'r4-saved', user: null }, path: '/api/collections/objects/records/x', onSession: async (session) => saved.push(session.refreshToken), fetchImpl }),
+    (error) => error.status === 404,
+  )
+  assert.deepEqual(saved, ['r5-saved'])
+})
+
+test('API requests never send or store browser cookies', async () => {
+  const { fetchImpl, calls } = createFetchStub([() => jsonResponse(200, { accessToken: 'a', refreshToken: 'r-cookie', user: null })])
+  await refreshSession({ apiUrl: 'https://api.aurora.ink', refreshToken: 'r-cookie-old', fetchImpl })
+  assert.equal(calls[0].init.credentials, 'omit')
 })

@@ -257,12 +257,11 @@ export async function cropImage(blob, box, devicePixelRatio = 1) {
 export async function checkWorkspace({ apiUrl, session, workspaceId, onSession = async () => {}, fetchImpl = fetch }) {
   let listed
   try {
-    listed = await listWorkspacesWithSession({ apiUrl, session, fetchImpl })
+    listed = await listWorkspacesWithSession({ apiUrl, session, onSession, fetchImpl })
   } catch (error) {
     if (error.status === 401) throw error
     throw new CaptureBlockedError("Couldn't check this workspace. Try again.", 'WORKSPACE_CHECK_FAILED')
   }
-  if (listed.session !== session) await onSession(listed.session)
   const workspace = listed.workspaces.find((item) => item.id === workspaceId)
   if (workspace?.e2eeEnabled === true) {
     throw new CaptureBlockedError('This workspace is end-to-end encrypted. Use Enable encrypted capture so the clip stays sealed.', 'WORKSPACE_ENCRYPTED')
@@ -275,13 +274,9 @@ export async function checkWorkspace({ apiUrl, session, workspaceId, onSession =
 
 export async function quickCapture({ apiUrl, session, workspaceId, mode, page, note = '', tags = [], image = null, onSession = async () => {}, fetchImpl = fetch }) {
   let current = await checkWorkspace({ apiUrl, session, workspaceId, onSession, fetchImpl })
-  const track = async (next) => {
-    if (next !== current) await onSession(next)
-    current = next
-  }
   const create = async (collection, body) => {
-    const result = await createRecordWithSession({ apiUrl, session: current, collection, body, fetchImpl })
-    await track(result.session)
+    const result = await createRecordWithSession({ apiUrl, session: current, collection, body, onSession, fetchImpl })
+    current = result.session
     return result.record
   }
   const property = (objectId, key, valueType, values) => create('object_properties', { object_id: objectId, key, value_type: valueType, ...values })
@@ -305,8 +300,8 @@ export async function quickCapture({ apiUrl, session, workspaceId, mode, page, n
     form.append('original_url', page.url)
     form.append('size_bytes', String(image.size))
     form.append('file', image, `aurora-${mode}-${Date.now()}.${extension}`)
-    const uploaded = await requestWithSession({ apiUrl, session: current, path: '/api/collections/images/records', method: 'POST', form, fetchImpl })
-    await track(uploaded.session)
+    const uploaded = await requestWithSession({ apiUrl, session: current, path: '/api/collections/images/records', method: 'POST', form, onSession, fetchImpl })
+    current = uploaded.session
     imageSrc = imageSrcFor(apiUrl, workspaceId, uploaded.payload)
   }
 
@@ -415,8 +410,7 @@ export async function findExistingClip({ apiUrl, session, workspaceId, url, inde
     throw error
   }
   const get = async (path) => {
-    const result = await requestWithSession({ apiUrl, session: current, path, fetchImpl })
-    if (result.session !== current) await onSession(result.session)
+    const result = await requestWithSession({ apiUrl, session: current, path, onSession, fetchImpl })
     current = result.session
     return result.payload
   }

@@ -1,4 +1,4 @@
-import { DEFAULT_API_URL, listWorkspacesWithSession, normalizeApiUrl, requestEmailCode, signIn, verifyMfa } from './auth.js'
+import { DEFAULT_API_URL, normalizeApiUrl, requestEmailCode, signIn, verifyMfa } from './auth.js'
 import { createClipperApi } from './clipperApi.js'
 import { createClipperState } from './clipperState.js'
 import { listOAuthProviders, requestOAuthLinkEmail } from './oauth.js'
@@ -127,17 +127,18 @@ async function handleOAuthSignIn(provider) {
   try { setBusy(true); setBusyStatus('Finish signing in in the new window...'); const settings = await readSettings(); const response = await chrome.runtime.sendMessage({ type: 'AURORA_OAUTH_SIGN_IN', provider, apiUrl: settings.apiUrl }); if (response?.ok) { currentSession = validSession((await chrome.storage.local.get({ session: null })).session); setStatus('Signed in to Aurora.', 'success'); void loadWorkspaces(); return } if (response?.cancelled) { setStatus(''); return } if (response?.mfa) { pendingMfa = (await chrome.storage.session.get({ pendingMfa: null })).pendingMfa; setStatus(''); render(); form.mfaCode.focus(); return } if (response?.handoff) { showHandoff(response.handoff); return } throw new Error(response?.error || 'Sign-in failed.') } catch (error) { setStatus(error.message || String(error), 'error') } finally { setBusy(false) }
 }
 
-// Quick capture uses the signed-in session, so it can list the workspaces itself instead of asking for an ID.
+// The worker lists the workspaces with the signed-in session, so the user needs no Workspace ID.
 async function loadWorkspaces() {
   if (!currentSession) return
-  try {
-    const { workspaces, session } = await listWorkspacesWithSession({ apiUrl: normalizeApiUrl(form.apiUrl.value), session: currentSession })
-    if (session !== currentSession) { currentSession = session; await chrome.storage.local.set({ session }) }
-    sessionWorkspaces = workspaces
-    const chosen = chooseWorkspaceId(workspaces, form.workspaceId.value.trim())
-    if (chosen !== form.workspaceId.value) { form.workspaceId.value = chosen; await chrome.storage.sync.set({ workspaceId: chosen }) }
-    populateWorkspacePicker(); render(); void findDuplicate()
-  } catch { /* keep the typed Workspace ID */ }
+  const response = await chrome.runtime.sendMessage({ type: 'AURORA_LIST_WORKSPACES' }).catch((error) => ({ ok: false, error: error.message }))
+  if (!response?.ok) {
+    if (response?.status === 401) { await clearSession(); setStatus('Your Aurora session has ended. Sign in again.', 'error'); return }
+    setStatus(`Couldn't load your workspaces: ${response?.error || 'unknown error'}`, 'error'); return
+  }
+  sessionWorkspaces = response.workspaces
+  const chosen = chooseWorkspaceId(sessionWorkspaces, form.workspaceId.value.trim())
+  if (chosen !== form.workspaceId.value) { form.workspaceId.value = chosen; await chrome.storage.sync.set({ workspaceId: chosen }) }
+  populateWorkspacePicker(); render(); void findDuplicate()
 }
 
 function populateWorkspacePicker() {
