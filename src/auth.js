@@ -171,6 +171,41 @@ export async function createRecordWithSession({
   }
 }
 
+export async function listWorkspacesWithSession({ apiUrl, session, fetchImpl = fetch }) {
+  try {
+    return { workspaces: await getWorkspaces({ apiUrl, session, fetchImpl }), session }
+  } catch (error) {
+    if (!(error instanceof AuroraClipperApiError) || error.status !== 401 || !session?.refreshToken) {
+      throw error
+    }
+  }
+
+  const refreshedSession = await refreshSession({
+    apiUrl,
+    refreshToken: session.refreshToken,
+    fetchImpl,
+  })
+  return {
+    workspaces: await getWorkspaces({ apiUrl, session: refreshedSession, fetchImpl }),
+    session: refreshedSession,
+  }
+}
+
+async function getWorkspaces({ apiUrl, session, fetchImpl }) {
+  if (!session?.accessToken) {
+    throw new AuroraClipperApiError('Sign in to Aurora first.', 401, {})
+  }
+  const payload = await requestJson({ apiUrl, path: '/workspaces', method: 'GET', token: session.accessToken, fetchImpl })
+  return (Array.isArray(payload.items) ? payload.items : [])
+    .filter((item) => typeof item?.id === 'string' && item.id)
+    // e2eeEnabled is null when an older server leaves it out; callers treat that as encrypted.
+    .map((item) => ({
+      id: item.id,
+      name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : item.id,
+      e2eeEnabled: typeof item.e2eeEnabled === 'boolean' ? item.e2eeEnabled : null,
+    }))
+}
+
 async function postRecord({ apiUrl, session, collection, body, fetchImpl }) {
   if (!session?.accessToken) {
     throw new AuroraClipperApiError('Sign in to Aurora before clipping.', 401, {})

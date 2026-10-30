@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   AuroraClipperApiError,
   createRecordWithSession,
+  listWorkspacesWithSession,
   normalizeApiUrl,
   requestEmailCode,
   signIn,
@@ -226,4 +227,51 @@ test('API errors expose status and server message', async () => {
       && error.status === 403
       && error.message === 'Workspace access denied.',
   )
+})
+
+test('listWorkspacesWithSession lists the workspaces the signed-in user can use, in API order', async () => {
+  const session = { accessToken: 'access', refreshToken: 'refresh', user: null }
+  const { fetchImpl, calls } = createFetchStub([
+    () => jsonResponse(200, {
+      items: [
+        { id: 'ws_recent', name: 'Hei', slug: 'hei', settingsJson: {}, e2eeEnabled: false },
+        { id: 'ws_old', name: '', slug: 'old', e2eeEnabled: true },
+        { id: 'ws_legacy', name: 'Legacy' },
+        { name: 'no id' },
+      ],
+    }),
+  ])
+
+  const result = await listWorkspacesWithSession({ apiUrl: 'https://api.aurora.ink', session, fetchImpl })
+
+  assert.equal(calls[0].url, 'https://api.aurora.ink/workspaces')
+  assert.equal(calls[0].init.method, 'GET')
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer access')
+  assert.deepEqual(result, {
+    workspaces: [
+      { id: 'ws_recent', name: 'Hei', e2eeEnabled: false },
+      { id: 'ws_old', name: 'ws_old', e2eeEnabled: true },
+      { id: 'ws_legacy', name: 'Legacy', e2eeEnabled: null },
+    ],
+    session,
+  })
+})
+
+test('listWorkspacesWithSession refreshes an expired access token once and returns the new session', async () => {
+  const { fetchImpl, calls } = createFetchStub([
+    () => jsonResponse(401, { error: 'Invalid or expired token.' }),
+    () => jsonResponse(200, { accessToken: 'fresh-access', refreshToken: 'fresh-refresh', user: null }),
+    () => jsonResponse(200, { items: [{ id: 'ws_1', name: 'Work' }] }),
+  ])
+
+  const result = await listWorkspacesWithSession({
+    apiUrl: 'https://api.aurora.ink',
+    session: { accessToken: 'expired', refreshToken: 'refresh', user: null },
+    fetchImpl,
+  })
+
+  assert.equal(calls[1].url, 'https://api.aurora.ink/auth/refresh')
+  assert.equal(calls[2].init.headers.Authorization, 'Bearer fresh-access')
+  assert.deepEqual(result.workspaces, [{ id: 'ws_1', name: 'Work', e2eeEnabled: null }])
+  assert.equal(result.session.accessToken, 'fresh-access')
 })
