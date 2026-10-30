@@ -181,3 +181,12 @@ test('findExistingClip skips deleted objects and never lists an encrypted worksp
   assert.equal((await findExistingClip({ apiUrl: 'https://api.aurora.ink', session, workspaceId: 'ws_1', url: 'https://example.com/a', fetchImpl: encrypted.fetchImpl })).objectId, null)
   assert.equal(encrypted.calls.length, 1)
 })
+
+test('nested blocks and lists from a page snapshot keep their structure', () => {
+  const el = (tagName, ...childNodes) => ({ nodeType: 1, tagName, attributes: {}, childNodes })
+  const text = (textContent) => ({ nodeType: 3, textContent })
+  const article = { title: 'T', byline: '', nodes: [el('DIV', el('DIV', el('H2', text('Part one')), el('P', text('Body')), el('UL', el('LI', text('a')), el('LI', text('b')))))] }
+  const content = clipContent({ mode: 'article', page: { ...page, article }, note: '' })
+  assert.deepEqual(content.content.map((block) => block.type), ['heading', 'heading', 'paragraph', 'bulletList', 'paragraph'])
+  assert.equal(content.content[3].content.length, 2)
+})

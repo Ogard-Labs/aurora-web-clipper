@@ -171,6 +171,7 @@ function hydrate(node) {
     textContent: childNodes.map((child) => child.textContent).join(''),
     getAttribute: (name) => (typeof attributes[name] === 'string' ? attributes[name] : null),
     childNodes,
+    children: childNodes.filter((child) => child.nodeType === 1),
   }
 }
 
