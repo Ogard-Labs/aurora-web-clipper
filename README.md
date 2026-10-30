@@ -41,9 +41,9 @@ for the protected workflow and required deployment setup.
 2. Keep the production API URL, `https://api.aurora.ink`, or enter the URL
    supplied by your self-hosted administrator. Self-hosted APIs must use HTTPS;
    `http://localhost` and `http://127.0.0.1` are allowed for local development.
-3. In Aurora, open **Settings → Workspace**, copy **Workspace ID**, and
-   enter it in the popup. For a self-hosted workspace, ask its administrator
-   for both the API URL and Workspace ID.
+3. After you sign in, the popup lists your workspaces and picks one. To use a
+   workspace you can't see there, enter its **Workspace ID** under
+   **Connection settings** (Aurora shows it in **Settings → Workspace**).
 4. Enter your Aurora email and password, then select **Sign in securely**. Or
    select **Continue with Google**, **GitHub**, **Apple** or **Microsoft** if
    you sign in to Aurora that way. The provider opens in its own window and
@@ -80,13 +80,31 @@ still works.
 
 ## Capture content
 
-Open the page you want to save, select the extension, and choose:
+Open the page you want to save, select the extension, pick the workspace, add a
+note or tags if you like, and choose:
 
-- **Clip page** to create an encrypted Inbox bookmark with the page title, URL,
-  and description.
-- **Clip selection** to create an encrypted Inbox page containing the selected
-  text as a quote. Basic formatting, links, and ordered or unordered lists are
+- **Clip page** to create an Inbox bookmark with the page title, URL, and
+  description.
+- **Clip selection** to create an Inbox page containing the selected text as a
+  quote. Basic formatting, links, and ordered or unordered lists are
   preserved; relative links are resolved against the source page.
+- **Clip article** to save the readable text of an article, found by the
+  bundled Mozilla Readability. If no article is found, the link is saved.
+- **Screenshot** to drag a box on the page and save that part as an image.
+  Press Esc to cancel.
+
+After a save, **Open in Aurora** opens the new item. If the page is already in
+the workspace, the popup says **Already in Aurora**.
+
+Without opening the popup, right-click a page, a selection, a link or an image
+and choose **Clip … to Aurora**, or press **Alt+Shift+S** to clip the page.
+Change the shortcut in `chrome://extensions/shortcuts`. The toolbar icon shows
+✓ when the clip is saved and ! when it is not; open the popup to see why.
+
+Screenshots, images and tags work only in workspaces that are not end-to-end
+encrypted. For an encrypted workspace, select **Enable encrypted capture**: the
+clipper then seals page, selection, article and link clips on this device.
+Quick capture never writes readable data to an encrypted workspace.
 
 Encrypted captures are held in a server-side opaque pending inbox until a
 trusted Aurora client unlocks the workspace. A retry uses the same capture

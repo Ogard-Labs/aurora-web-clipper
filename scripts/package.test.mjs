@@ -60,10 +60,10 @@ test('release package uses the exact lexical public-file allowlist', async () =>
     'src/auth.js',
     'src/background.js',
     'src/capture.js',
-    'src/menus.js',
     'src/captureEnvelope.js',
     'src/clipperApi.js',
     'src/clipperState.js',
+    'src/menus.js',
     'src/oauth.js',
     'src/permissions.js',
     'src/popup.html',
@@ -102,4 +102,21 @@ test('release package bytes use fixed platform-independent stored entries', asyn
   const secondHash = sha256(await readFile(archiveUrl))
 
   assert.equal(secondHash, firstHash)
+})
+
+test('the Chrome Web Store package is the release package without the manifest key', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  await execFileAsync(process.execPath, ['scripts/package.mjs'], { cwd: projectRoot })
+  await execFileAsync(process.execPath, ['scripts/package.mjs', '--store'], { cwd: projectRoot })
+
+  const release = `dist/auroradocs-web-clipper-${pkg.version}.zip`
+  const store = `dist/auroradocs-web-clipper-${pkg.version}-chrome-web-store.zip`
+  const list = async (archive) => (await execFileAsync('unzip', ['-Z1', archive], { cwd: projectRoot })).stdout
+  assert.equal(await list(store), await list(release))
+
+  const storeManifest = JSON.parse((await execFileAsync('unzip', ['-p', store, 'manifest.json'], { cwd: projectRoot })).stdout)
+  const sourceManifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'))
+  assert.equal(storeManifest.key, undefined)
+  const { key: _key, ...expected } = sourceManifest
+  assert.deepEqual(storeManifest, expected)
 })
