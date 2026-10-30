@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { chooseWorkspaceId, objectUrl, shouldStopPairingPoll, workspaceOptionLabel } from './popupState.js'
+import { capturePath, chooseWorkspaceId, objectUrl, shouldStopPairingPoll, workspaceChoices, workspaceOptionLabel } from './popupState.js'
 
 const futureExpiry = '2026-07-18T15:00:00.000Z'
 const now = Date.parse('2026-07-18T14:00:00.000Z')
@@ -42,4 +42,21 @@ test('workspaceOptionLabel marks encrypted workspaces only', () => {
   assert.equal(workspaceOptionLabel({ name: 'Secret', e2eeEnabled: true }), 'Secret · encrypted')
   assert.equal(workspaceOptionLabel({ name: 'Notes', e2eeEnabled: false }), 'Notes')
   assert.equal(workspaceOptionLabel({ name: 'Old', e2eeEnabled: null }), 'Old')
+})
+
+test('workspaceChoices merges named workspaces, paired ones and a typed ID', () => {
+  const choices = workspaceChoices({
+    sessionWorkspaces: [{ id: 'ws_a', name: 'Notes', e2eeEnabled: false }, { id: 'ws_b', name: 'Secret', e2eeEnabled: true }],
+    authorizations: { ws_b: { captureKey: { publicKey: 'k' } }, ws_c: { captureKey: { publicKey: 'k' } } },
+    typedId: 'ws_typed',
+  })
+  assert.deepEqual(choices.map((choice) => [choice.id, choice.paired]), [['ws_a', false], ['ws_b', true], ['ws_c', true], ['ws_typed', false]])
+})
+
+test('capturePath seals paired workspaces and allows quick capture only when confirmed unencrypted', () => {
+  assert.equal(capturePath({ choice: { paired: true, e2eeEnabled: true }, hasCredentials: true, signedIn: false }), 'encrypted')
+  assert.equal(capturePath({ choice: { paired: false, e2eeEnabled: false }, hasCredentials: false, signedIn: true }), 'quick')
+  assert.equal(capturePath({ choice: { paired: false, e2eeEnabled: true }, hasCredentials: false, signedIn: true }), 'blocked')
+  assert.equal(capturePath({ choice: { paired: false, e2eeEnabled: null }, hasCredentials: false, signedIn: true }), 'blocked')
+  assert.equal(capturePath({ choice: null, hasCredentials: false, signedIn: true }), 'none')
 })

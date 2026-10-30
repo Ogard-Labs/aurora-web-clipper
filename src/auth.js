@@ -171,6 +171,21 @@ export async function createRecordWithSession({
   }
 }
 
+// Any signed-in API call: on 401 it refreshes the session once and retries.
+export async function requestWithSession({ apiUrl, session, path, method = 'GET', body, form, fetchImpl = fetch }) {
+  const send = (current) => {
+    if (!current?.accessToken) throw new AuroraClipperApiError('Sign in to Aurora first.', 401, {})
+    return requestJson({ apiUrl, path, method, body, form, token: current.accessToken, fetchImpl })
+  }
+  try {
+    return { payload: await send(session), session }
+  } catch (error) {
+    if (!(error instanceof AuroraClipperApiError) || error.status !== 401 || !session?.refreshToken) throw error
+  }
+  const refreshedSession = await refreshSession({ apiUrl, refreshToken: session.refreshToken, fetchImpl })
+  return { payload: await send(refreshedSession), session: refreshedSession }
+}
+
 export async function listWorkspacesWithSession({ apiUrl, session, fetchImpl = fetch }) {
   try {
     return { workspaces: await getWorkspaces({ apiUrl, session, fetchImpl }), session }
@@ -220,14 +235,15 @@ async function postRecord({ apiUrl, session, collection, body, fetchImpl }) {
   })
 }
 
-async function requestJson({ apiUrl, path, method, body, token, fetchImpl }) {
-  const headers = { 'Content-Type': 'application/json' }
+async function requestJson({ apiUrl, path, method, body, form, token, fetchImpl }) {
+  // A FormData body sets its own multipart Content-Type.
+  const headers = form ? {} : { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
 
   const response = await fetchImpl(`${normalizeApiUrl(apiUrl)}${path}`, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
   })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {

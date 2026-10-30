@@ -14,7 +14,10 @@
     "service_worker": "src/background.js",
     "type": "module"
   },
-  "permissions": ["activeTab", "identity", "scripting", "storage"],
+  "permissions": ["activeTab", "contextMenus", "identity", "scripting", "storage"],
+  "commands": {
+    "clip-page": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "Clip this page to Aurora" }
+  },
   "host_permissions": ["https://api.aurora.ink/*", "https://api.auroradocs.eu/*", "http://localhost/*", "http://127.0.0.1/*"],
   "optional_host_permissions": ["https://*/*"]
 }

@@ -16,6 +16,7 @@ const packageFiles = [
   'src/auth.js',
   'src/background.js',
   'src/capture.js',
+  'src/menus.js',
   'src/captureEnvelope.js',
   'src/clipperApi.js',
   'src/clipperState.js',
@@ -25,6 +26,8 @@ const packageFiles = [
   'src/popup.js',
   'src/popupState.js',
   'src/tiptapHtml.js',
+  'src/vendor/Readability.LICENSE.md',
+  'src/vendor/Readability.js',
 ]
 
 const projectRoot = new URL('..', import.meta.url)
