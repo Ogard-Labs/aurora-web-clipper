@@ -234,8 +234,9 @@ test('listWorkspacesWithSession lists the workspaces the signed-in user can use,
   const { fetchImpl, calls } = createFetchStub([
     () => jsonResponse(200, {
       items: [
-        { id: 'ws_recent', name: 'Hei', slug: 'hei', settingsJson: {} },
-        { id: 'ws_old', name: '', slug: 'old' },
+        { id: 'ws_recent', name: 'Hei', slug: 'hei', settingsJson: {}, e2eeEnabled: false },
+        { id: 'ws_old', name: '', slug: 'old', e2eeEnabled: true },
+        { id: 'ws_legacy', name: 'Legacy' },
         { name: 'no id' },
       ],
     }),
@@ -248,8 +249,9 @@ test('listWorkspacesWithSession lists the workspaces the signed-in user can use,
   assert.equal(calls[0].init.headers.Authorization, 'Bearer access')
   assert.deepEqual(result, {
     workspaces: [
-      { id: 'ws_recent', name: 'Hei' },
-      { id: 'ws_old', name: 'ws_old' },
+      { id: 'ws_recent', name: 'Hei', e2eeEnabled: false },
+      { id: 'ws_old', name: 'ws_old', e2eeEnabled: true },
+      { id: 'ws_legacy', name: 'Legacy', e2eeEnabled: null },
     ],
     session,
   })
@@ -270,6 +272,6 @@ test('listWorkspacesWithSession refreshes an expired access token once and retur
 
   assert.equal(calls[1].url, 'https://api.aurora.ink/auth/refresh')
   assert.equal(calls[2].init.headers.Authorization, 'Bearer fresh-access')
-  assert.deepEqual(result.workspaces, [{ id: 'ws_1', name: 'Work' }])
+  assert.deepEqual(result.workspaces, [{ id: 'ws_1', name: 'Work', e2eeEnabled: null }])
   assert.equal(result.session.accessToken, 'fresh-access')
 })

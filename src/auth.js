@@ -198,7 +198,12 @@ async function getWorkspaces({ apiUrl, session, fetchImpl }) {
   const payload = await requestJson({ apiUrl, path: '/workspaces', method: 'GET', token: session.accessToken, fetchImpl })
   return (Array.isArray(payload.items) ? payload.items : [])
     .filter((item) => typeof item?.id === 'string' && item.id)
-    .map((item) => ({ id: item.id, name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : item.id }))
+    // e2eeEnabled is null when an older server leaves it out; callers treat that as encrypted.
+    .map((item) => ({
+      id: item.id,
+      name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : item.id,
+      e2eeEnabled: typeof item.e2eeEnabled === 'boolean' ? item.e2eeEnabled : null,
+    }))
 }
 
 async function postRecord({ apiUrl, session, collection, body, fetchImpl }) {

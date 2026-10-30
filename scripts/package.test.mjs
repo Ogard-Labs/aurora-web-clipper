@@ -59,6 +59,7 @@ test('release package uses the exact lexical public-file allowlist', async () =>
     'manifest.json',
     'src/auth.js',
     'src/background.js',
+    'src/capture.js',
     'src/captureEnvelope.js',
     'src/clipperApi.js',
     'src/clipperState.js',
@@ -80,7 +81,7 @@ test('release package bytes use fixed platform-independent stored entries', asyn
   const firstArchive = await readFile(archiveUrl)
   const entries = readCentralDirectoryEntries(firstArchive)
 
-  assert.equal(entries.length, 19)
+  assert.equal(entries.length, 20)
   for (const entry of entries) {
     assert.equal(entry.compressionMethod, 0, `${entry.name} must use ZIP STORE`)
     assert.equal(entry.dosDate, 33, `${entry.name} must use 1980-01-01`)
