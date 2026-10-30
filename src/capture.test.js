@@ -189,4 +189,11 @@ test('nested blocks and lists from a page snapshot keep their structure', () => 
   const content = clipContent({ mode: 'article', page: { ...page, article }, note: '' })
   assert.deepEqual(content.content.map((block) => block.type), ['heading', 'heading', 'paragraph', 'bulletList', 'paragraph'])
   assert.equal(content.content[3].content.length, 2)
+
+test('selectionContent keeps lists from the page node snapshot', () => {
+  const el = (tagName, ...childNodes) => ({ nodeType: 1, tagName, textContent: '', attributes: {}, childNodes })
+  const text = (textContent) => ({ nodeType: 3, textContent })
+  const content = selectionContent({ ...page, selectionNodes: [el('UL', el('LI', text('a')), el('LI', text('b')))] })
+  assert.equal(content.content[1].content[0].type, 'bulletList')
+  assert.equal(content.content[1].content[0].content.length, 2)
 })
