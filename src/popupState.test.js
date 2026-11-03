@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import test from 'node:test'
-import { capturePath, chooseWorkspaceId, objectUrl, shouldStopPairingPoll, workspaceChoices, workspaceOptionLabel } from './popupState.js'
+import { capturePath, chooseWorkspaceId, objectUrl, providerMarks, shouldStopPairingPoll, workspaceChoices, workspaceLoadProblem, workspaceOptionLabel } from './popupState.js'
 
 const futureExpiry = '2026-07-18T15:00:00.000Z'
 const now = Date.parse('2026-07-18T14:00:00.000Z')
@@ -59,4 +60,20 @@ test('capturePath seals paired workspaces and allows quick capture only when con
   assert.equal(capturePath({ choice: { paired: false, e2eeEnabled: true }, hasCredentials: false, signedIn: true }), 'blocked')
   assert.equal(capturePath({ choice: { paired: false, e2eeEnabled: null }, hasCredentials: false, signedIn: true }), 'blocked')
   assert.equal(capturePath({ choice: null, hasCredentials: false, signedIn: true }), 'none')
+})
+
+test('every sign-in provider has a logo file, and Apple and GitHub follow the theme', () => {
+  for (const provider of ['apple', 'github', 'google', 'microsoft']) {
+    const marks = providerMarks(provider)
+    assert.ok(marks.length > 0, provider)
+    for (const { file } of marks) assert.ok(existsSync(new URL(`../icons/providers/${file}`, import.meta.url)), file)
+  }
+  assert.deepEqual(providerMarks('apple').map((mark) => mark.theme), ['light', 'dark'])
+  assert.equal(providerMarks('github')[0].theme, 'invert')
+  assert.deepEqual(providerMarks('unknown'), [])
+})
+
+test('a worker that gives no answer asks for a reload, a real failure shows its reason', () => {
+  assert.deepEqual(workspaceLoadProblem(undefined), { message: 'The clipper was updated. Press Reload on its card in Chrome to finish.', reload: true })
+  assert.deepEqual(workspaceLoadProblem({ ok: false, error: 'AuroraCloud returned HTTP 500.' }), { message: "Couldn't load your workspaces: AuroraCloud returned HTTP 500.", reload: false })
 })

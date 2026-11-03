@@ -56,6 +56,11 @@ test('release package uses the exact lexical public-file allowlist', async () =>
     'icons/icon-16.png',
     'icons/icon-32.png',
     'icons/icon-48.png',
+    'icons/providers/apple-sign-in-logo-black.png',
+    'icons/providers/apple-sign-in-logo-white.png',
+    'icons/providers/github-invertocat.svg',
+    'icons/providers/google-g-logo.png',
+    'icons/providers/microsoft-symbol.svg',
     'manifest.json',
     'src/auth.js',
     'src/background.js',
@@ -84,7 +89,7 @@ test('release package bytes use fixed platform-independent stored entries', asyn
   const firstArchive = await readFile(archiveUrl)
   const entries = readCentralDirectoryEntries(firstArchive)
 
-  assert.equal(entries.length, 23)
+  assert.equal(entries.length, 28)
   for (const entry of entries) {
     assert.equal(entry.compressionMethod, 0, `${entry.name} must use ZIP STORE`)
     assert.equal(entry.dosDate, 33, `${entry.name} must use 1980-01-01`)

@@ -4,7 +4,7 @@ import { createClipperState } from './clipperState.js'
 import { listOAuthProviders, requestOAuthLinkEmail } from './oauth.js'
 import { ensureHostPermission } from './permissions.js'
 import { freshLastCapture } from './menus.js'
-import { appUrl as appUrlFor, capturePath, chooseWorkspaceId, encryptedCaptureSuccessMessage, objectUrl, shouldStopPairingPoll, workspaceChoices, workspaceHint, workspaceOptionLabel } from './popupState.js'
+import { appUrl as appUrlFor, capturePath, chooseWorkspaceId, encryptedCaptureSuccessMessage, objectUrl, providerMarks, shouldStopPairingPoll, workspaceChoices, workspaceHint, workspaceLoadProblem, workspaceOptionLabel } from './popupState.js'
 
 const form = Object.fromEntries(['apiUrl','workspaceId','stateConnect','stateApprove','pairingCode','pairingExpiry','openAurora','cancelPairing','previewTitle','previewUrl','signedOutPanel','signedInAs','sessionAvatar','pairClipper','pairingStatus','email','password','signIn','signOut','signOutReady','mfaPanel','mfaHint','mfaMethod','mfaCode','verifyMfa','requestEmailCode','cancelMfa','status','retryCapture','oauthProviders','statusAction','intro','accountBar','pairCard','captureCard','workspaceSelect','workspaceHint','note','tags','duplicate','duplicateOpen'].map((id) => [id, document.querySelector(`#${id}`)]))
 
@@ -20,6 +20,7 @@ let busyMessage = null
 let oauthProviders = []
 let statusActionHandler = null
 let sessionWorkspaces = []
+let workspacesLoaded = false
 let currentPage = null
 let duplicateId = null
 const clipButtons = [...document.querySelectorAll('[data-mode]')]
@@ -62,7 +63,8 @@ function render() {
   if (busy && busyMessage) { form.status.replaceChildren(spinner(), busyMessage) }
   const canClip = !busy && !mfa && (path === 'quick' || path === 'encrypted')
   for (const button of clipButtons) button.disabled = !canClip || (button.dataset.mode === 'screenshot' && path !== 'quick')
-  form.workspaceHint.textContent = workspaceHint(path, currentChoice()); setVisible(form.workspaceHint, Boolean(form.workspaceHint.textContent))
+  // Until the list arrives nothing is known about the workspace, so say nothing.
+  form.workspaceHint.textContent = path === 'encrypted' || workspacesLoaded ? workspaceHint(path, currentChoice()) : ''; setVisible(form.workspaceHint, Boolean(form.workspaceHint.textContent))
   form.tags.disabled = busy || path === 'encrypted'; form.tags.placeholder = path === 'encrypted' ? "Tags aren't sealed yet" : 'Tags, comma separated'; form.note.disabled = busy
   setVisible(form.duplicate, Boolean(duplicateId) && path === 'quick')
   form.signIn.disabled = busy; form.oauthProviders.querySelectorAll('button').forEach((button) => { button.disabled = busy }); form.statusAction.disabled = busy; form.signOut.disabled = busy; form.signOutReady.disabled = busy
@@ -110,7 +112,7 @@ async function findDuplicate() {
 // One button per provider this AuroraCloud server allows for this extension.
 async function loadOAuthProviders() {
   try { oauthProviders = await listOAuthProviders({ apiUrl: normalizeApiUrl(form.apiUrl.value), extensionId: chrome.runtime.id }) } catch { oauthProviders = [] }
-  form.oauthProviders.replaceChildren(...oauthProviders.map((provider) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary'; button.textContent = `Continue with ${provider.name}`; button.disabled = busy; button.addEventListener('click', () => handleOAuthSignIn(provider.id)); return button }))
+  form.oauthProviders.replaceChildren(...oauthProviders.map((provider) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary provider-btn'; button.dataset.provider = provider.id; const mark = document.createElement('span'); mark.className = 'provider-mark'; mark.setAttribute('aria-hidden', 'true'); mark.append(...providerMarks(provider.id).map(({ file, theme }) => { const image = document.createElement('img'); image.src = `../icons/providers/${file}`; image.alt = ''; if (theme) image.dataset.theme = theme; return image })); const label = `Continue with ${provider.name}`; button.setAttribute('aria-label', label); button.title = label; button.append(mark); button.disabled = busy; button.addEventListener('click', () => handleOAuthSignIn(provider.id)); return button }))
   setVisible(form.oauthProviders, oauthProviders.length > 0)
 }
 
@@ -133,9 +135,9 @@ async function loadWorkspaces() {
   const response = await chrome.runtime.sendMessage({ type: 'AURORA_LIST_WORKSPACES' }).catch((error) => ({ ok: false, error: error.message }))
   if (!response?.ok) {
     if (response?.status === 401) { await clearSession(); setStatus('Your Aurora session has ended. Sign in again.', 'error'); return }
-    setStatus(`Couldn't load your workspaces: ${response?.error || 'unknown error'}`, 'error'); return
+    const problem = workspaceLoadProblem(response); setStatus(problem.message, 'error'); if (problem.reload) setStatusAction('Open extensions page', () => chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` })); return
   }
-  sessionWorkspaces = response.workspaces
+  sessionWorkspaces = response.workspaces; workspacesLoaded = true
   const chosen = chooseWorkspaceId(sessionWorkspaces, form.workspaceId.value.trim())
   if (chosen !== form.workspaceId.value) { form.workspaceId.value = chosen; await chrome.storage.sync.set({ workspaceId: chosen }) }
   populateWorkspacePicker(); render(); void findDuplicate()
@@ -161,7 +163,7 @@ async function readSettings(requireWorkspace = false) {
 async function previewPage() { try { const page = await captureActivePage(); currentPage = page; form.previewTitle.textContent = page.title || 'Current browser tab'; form.previewUrl.textContent = page.url || 'Ready to capture' } catch { form.previewUrl.textContent = 'Open a page to preview it here' } }
 async function captureActivePage() { const response = await chrome.runtime.sendMessage({ type: 'AURORA_CAPTURE_ACTIVE_TAB' }); if (!response?.ok) throw new Error(response?.error || 'Could not inspect the current tab.'); return response.page }
 async function saveSession(session) { currentSession = session; pendingMfa = null; await chrome.storage.session.remove('pendingMfa'); await chrome.storage.local.set({ session }); render(); void loadWorkspaces() }
-async function clearSession() { currentSession = null; sessionWorkspaces = []; duplicateId = null; populateWorkspacePicker(); pendingMfa = null; await chrome.storage.session.remove('pendingMfa'); await chrome.storage.local.remove('session'); render() }
+async function clearSession() { currentSession = null; sessionWorkspaces = []; workspacesLoaded = false; duplicateId = null; populateWorkspacePicker(); pendingMfa = null; await chrome.storage.session.remove('pendingMfa'); await chrome.storage.local.remove('session'); render() }
 
 async function handleSignIn() {
   try { setBusy(true); setBusyStatus('Signing in...'); const settings = await readSettings(); const email = form.email.value.trim(); const password = form.password.value; if (!email || !password) throw new Error('Email and password are required.'); const result = await signIn({ apiUrl: settings.apiUrl, email, password }); form.password.value = ''; if (result.status === 'mfa_required') { pendingMfa = result.challenge; render(); form.mfaCode.focus(); return } await saveSession(result.session); setStatus('Signed in to Aurora.', 'success') } catch (error) { setStatus(error.message || String(error), 'error') } finally { setBusy(false) }
