@@ -135,7 +135,7 @@ async function loadWorkspaces() {
   const response = await chrome.runtime.sendMessage({ type: 'AURORA_LIST_WORKSPACES' }).catch((error) => ({ ok: false, error: error.message }))
   if (!response?.ok) {
     if (response?.status === 401) { await clearSession(); setStatus('Your Aurora session has ended. Sign in again.', 'error'); return }
-    const problem = workspaceLoadProblem(response); setStatus(problem.message, 'error'); if (problem.reload) setStatusAction('Reload clipper', () => chrome.runtime.reload()); return
+    const problem = workspaceLoadProblem(response); setStatus(problem.message, 'error'); if (problem.reload) setStatusAction('Open extensions page', () => chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` })); return
   }
   sessionWorkspaces = response.workspaces; workspacesLoaded = true
   const chosen = chooseWorkspaceId(sessionWorkspaces, form.workspaceId.value.trim())

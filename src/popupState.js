@@ -83,6 +83,6 @@ export function providerMarks(providerId) {
 // A worker that answers nothing at all predates this popup: Chrome re-reads an
 // unpacked extension's popup from disk but keeps the old worker until Reload.
 export function workspaceLoadProblem(response) {
-  if (response === undefined) return { message: 'The clipper was updated. Reload it to finish the update.', reload: true }
+  if (response === undefined) return { message: 'The clipper was updated. Press Reload on its card in Chrome to finish.', reload: true }
   return { message: `Couldn't load your workspaces: ${response?.error || 'unknown error'}`, reload: false }
 }

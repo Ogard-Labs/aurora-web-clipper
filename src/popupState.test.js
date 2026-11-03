@@ -74,6 +74,6 @@ test('every sign-in provider has a logo file, and Apple and GitHub follow the th
 })
 
 test('a worker that gives no answer asks for a reload, a real failure shows its reason', () => {
-  assert.deepEqual(workspaceLoadProblem(undefined), { message: 'The clipper was updated. Reload it to finish the update.', reload: true })
+  assert.deepEqual(workspaceLoadProblem(undefined), { message: 'The clipper was updated. Press Reload on its card in Chrome to finish.', reload: true })
   assert.deepEqual(workspaceLoadProblem({ ok: false, error: 'AuroraCloud returned HTTP 500.' }), { message: "Couldn't load your workspaces: AuroraCloud returned HTTP 500.", reload: false })
 })
