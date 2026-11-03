@@ -102,10 +102,20 @@
       .link { padding: 0; color: inherit; font-size: inherit; text-decoration: underline; }
       .oauth-providers { display: grid; gap: 8px; }
       .provider-btn { display: grid; grid-template-columns: 20px 1fr 20px; gap: 8px; min-height: 38px; padding: 8px 12px; color: var(--text-1); }
+      /* Provider-mandated button colours, the same as the web app's oauthProviderButtonStyle.ts.
+         They are brand requirements, not theme tokens. GitHub publishes none, so it keeps the surface. */
+      .provider-btn[data-provider=apple] { --brand-bg: #000000; --brand-line: #000000; --brand-ink: #ffffff; }
+      .provider-btn[data-provider=google] { --brand-bg: #ffffff; --brand-line: #747775; --brand-ink: #1f1f1f; }
+      .provider-btn[data-provider=microsoft] { --brand-bg: #ffffff; --brand-line: #8c8c8c; --brand-ink: #5e5e5e; }
+      .provider-btn:not([data-provider=github]), .provider-btn:not([data-provider=github]):hover:not(:disabled) { background: var(--brand-bg); border-color: var(--brand-line); color: var(--brand-ink); }
+      .provider-btn:not([data-provider=github]):hover:not(:disabled) { opacity: 0.9; }
       .provider-mark { display: inline-flex; width: 20px; height: 20px; }
       .provider-mark img { width: 20px; height: 20px; object-fit: contain; }
       .provider-mark img[data-theme=dark] { display: none; }
       @media (prefers-color-scheme: dark) {
+        .provider-btn[data-provider=apple] { --brand-bg: #ffffff; --brand-line: #ffffff; --brand-ink: #000000; }
+        .provider-btn[data-provider=google] { --brand-bg: #131314; --brand-line: #8e918f; --brand-ink: #e3e3e3; }
+        .provider-btn[data-provider=microsoft] { --brand-bg: #2f2f2f; --brand-line: #2f2f2f; --brand-ink: #ffffff; }
         .provider-mark img[data-theme=light] { display: none; }
         .provider-mark img[data-theme=dark] { display: block; }
         .provider-mark img[data-theme=invert] { filter: invert(1); }
