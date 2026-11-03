@@ -101,6 +101,15 @@
       .duplicate { margin-top: 4px; color: var(--accent-ink); font-size: var(--text-xs); font-weight: 500; }
       .link { padding: 0; color: inherit; font-size: inherit; text-decoration: underline; }
       .oauth-providers { display: grid; gap: 8px; }
+      .provider-btn { display: grid; grid-template-columns: 20px 1fr 20px; gap: 8px; min-height: 38px; padding: 8px 12px; color: var(--text-1); }
+      .provider-mark { display: inline-flex; width: 20px; height: 20px; }
+      .provider-mark img { width: 20px; height: 20px; object-fit: contain; }
+      .provider-mark img[data-theme=dark] { display: none; }
+      @media (prefers-color-scheme: dark) {
+        .provider-mark img[data-theme=light] { display: none; }
+        .provider-mark img[data-theme=dark] { display: block; }
+        .provider-mark img[data-theme=invert] { filter: invert(1); }
+      }
       .hidden { display: none !important; }
       details summary { width: fit-content; border-radius: var(--radius-sm); color: var(--text-3); cursor: pointer; font-size: var(--text-sm); font-weight: 500; }
       details summary:hover { color: var(--text-1); }

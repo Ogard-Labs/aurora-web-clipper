@@ -65,3 +65,24 @@ export function workspaceHint(path, choice) {
   if (path === 'blocked') return "Aurora didn't say whether this workspace is encrypted, so quick capture is off."
   return ''
 }
+
+// Published sign-in artwork, the same files the web app uses. Google and
+// Microsoft keep their brand colours; Apple has black and white versions and
+// GitHub is inverted, so those two follow the light or dark theme.
+const PROVIDER_MARKS = {
+  apple: [{ file: 'apple-sign-in-logo-black.png', theme: 'light' }, { file: 'apple-sign-in-logo-white.png', theme: 'dark' }],
+  github: [{ file: 'github-invertocat.svg', theme: 'invert' }],
+  google: [{ file: 'google-g-logo.png', theme: null }],
+  microsoft: [{ file: 'microsoft-symbol.svg', theme: null }],
+}
+
+export function providerMarks(providerId) {
+  return PROVIDER_MARKS[providerId] ?? []
+}
+
+// A worker that answers nothing at all predates this popup: Chrome re-reads an
+// unpacked extension's popup from disk but keeps the old worker until Reload.
+export function workspaceLoadProblem(response) {
+  if (response === undefined) return { message: 'The clipper was updated. Reload it to finish the update.', reload: true }
+  return { message: `Couldn't load your workspaces: ${response?.error || 'unknown error'}`, reload: false }
+}
